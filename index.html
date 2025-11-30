@@ -234,6 +234,28 @@
             font-weight: 600;
         }
         
+        #show-frontier-btn {
+            background: rgba(100, 140, 180, 0.3);
+            border: 1px solid #6080a0;
+            color: #a0c0e0;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        #show-frontier-btn:hover,
+        #show-frontier-btn.active {
+            background: rgba(100, 140, 180, 0.5);
+            border-color: #80a0c0;
+            color: #c0e0ff;
+        }
+        
+        #show-frontier-btn.active {
+            box-shadow: 0 0 10px rgba(100, 140, 180, 0.5);
+        }
+        
         #reset-exploration-btn {
             background: rgba(139, 69, 69, 0.3);
             border: 1px solid #8b4545;
@@ -523,6 +545,38 @@
         
         .node.dimmed circle {
             opacity: 0.2;
+        }
+        
+        /* Frontier highlight styles */
+        .node.frontier-highlight circle {
+            fill: #60a0d0 !important;
+            stroke: #80c0f0 !important;
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 8px #60a0d0);
+            animation: pulse-frontier 1.5s ease-in-out infinite;
+        }
+        
+        .node.access-highlight circle {
+            fill: #50c080 !important;
+            stroke: #70e0a0 !important;
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 8px #50c080);
+        }
+        
+        .node.frontier-highlight text,
+        .node.access-highlight text {
+            fill: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        .link.frontier-highlight {
+            stroke-opacity: 1 !important;
+            stroke-width: 4px !important;
+        }
+        
+        @keyframes pulse-frontier {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
         }
         
         .node text {
@@ -1027,7 +1081,8 @@
             #controls .control-group,
             #new-file-btn,
             #add-item-log-btn,
-            #reset-exploration-btn {
+            #reset-exploration-btn,
+            #show-frontier-btn {
                 display: none !important;
             }
             
@@ -1154,6 +1209,7 @@
                         Path from start
                     </label>
                 </div>
+                <button id="show-frontier-btn" style="display: none;" title="Highlight unexplored areas and their access points">🔭 Frontier</button>
                 <button id="reset-exploration-btn" style="display: none;" title="Reset exploration progress">🔄 Reset</button>
                 <button id="add-item-log-btn" style="display: none;" title="Load Item Randomizer log to see key item locations">📦 Add Item Log</button>
                 <button id="new-file-btn">Load New File</button>
@@ -1560,6 +1616,7 @@
     let explorationMode = true; // false = Full Spoiler, true = Explorer
     let explorationState = null; // { discovered: Set<string>, tags: Map<string, string[]> }
     let currentSeed = null;
+    let frontierHighlightActive = false;
     
     const STORAGE_KEY_PREFIX = 'er-fog-exploration-';
     const AVAILABLE_TAGS = [
@@ -1631,6 +1688,11 @@
         saveExplorationState();
         if (currentGraphData) {
             renderGraph(currentGraphData, true); // true = preserve positions
+            
+            // If Frontier mode was active, re-apply it after render
+            if (frontierHighlightActive) {
+                setTimeout(() => highlightFrontier(), 100);
+            }
         }
     }
     
@@ -1851,10 +1913,15 @@
             }
         }
         
-        // Update reset button visibility
+        // Update exploration buttons visibility
         const resetBtn = document.getElementById('reset-exploration-btn');
+        const frontierBtn = document.getElementById('show-frontier-btn');
         if (resetBtn) {
             resetBtn.style.display = explorationMode ? 'inline-block' : 'none';
+        }
+        if (frontierBtn) {
+            frontierBtn.style.display = explorationMode ? 'inline-block' : 'none';
+            frontierBtn.classList.remove('active'); // Reset state on re-render
         }
         
         // Find connections for each node and calculate degree
@@ -2661,6 +2728,7 @@
     const modeSpoilerBtn = document.getElementById('mode-spoiler');
     const modeExplorerBtn = document.getElementById('mode-explorer');
     const resetExplorationBtn = document.getElementById('reset-exploration-btn');
+    const showFrontierBtn = document.getElementById('show-frontier-btn');
     
     modeSpoilerBtn.addEventListener('click', () => {
         if (!explorationMode) return; // Already in this mode
@@ -2707,6 +2775,77 @@
             resetExplorationState();
         }
     });
+    
+    showFrontierBtn.addEventListener('click', () => {
+        if (!explorationMode || !currentGraphData) return;
+        
+        frontierHighlightActive = !frontierHighlightActive;
+        showFrontierBtn.classList.toggle('active', frontierHighlightActive);
+        
+        if (frontierHighlightActive) {
+            highlightFrontier();
+        } else {
+            clearFrontierHighlight();
+        }
+    });
+    
+    function highlightFrontier() {
+        if (!explorationState || !currentGraphData) return;
+        
+        const svg = d3.select("svg");
+        const nodes = svg.selectAll(".node");
+        const links = svg.selectAll(".link");
+        
+        // Find frontier: undiscovered nodes that are adjacent to discovered nodes
+        const frontierNodes = new Set();
+        const accessNodes = new Set(); // Discovered nodes that give access to frontier
+        const frontierLinks = new Set();
+        
+        currentGraphData.links.forEach(link => {
+            const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+            const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+            
+            const sourceDiscovered = explorationState.discovered.has(sourceId);
+            const targetDiscovered = explorationState.discovered.has(targetId);
+            
+            // One discovered, one not = frontier edge
+            if (sourceDiscovered && !targetDiscovered) {
+                frontierNodes.add(targetId);
+                accessNodes.add(sourceId);
+            } else if (!sourceDiscovered && targetDiscovered) {
+                frontierNodes.add(sourceId);
+                accessNodes.add(targetId);
+            }
+        });
+        
+        // Highlight nodes
+        nodes.classed("frontier-highlight", d => frontierNodes.has(d.id))
+             .classed("access-highlight", d => accessNodes.has(d.id))
+             .classed("dimmed", d => !frontierNodes.has(d.id) && !accessNodes.has(d.id));
+        
+        // Highlight links between access and frontier nodes
+        links.classed("frontier-highlight", l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            return (frontierNodes.has(sourceId) && accessNodes.has(targetId)) ||
+                   (frontierNodes.has(targetId) && accessNodes.has(sourceId));
+        })
+        .classed("dimmed", l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            return !((frontierNodes.has(sourceId) && accessNodes.has(targetId)) ||
+                    (frontierNodes.has(targetId) && accessNodes.has(sourceId)));
+        });
+    }
+    
+    function clearFrontierHighlight() {
+        const svg = d3.select("svg");
+        svg.selectAll(".node").classed("frontier-highlight", false)
+                              .classed("access-highlight", false)
+                              .classed("dimmed", false);
+        svg.selectAll(".link").classed("frontier-highlight", false)
+                              .classed("dimmed", false);
+    }
     
     // Handle window resize
     window.addEventListener('resize', () => {
