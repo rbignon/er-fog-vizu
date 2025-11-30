@@ -1622,12 +1622,15 @@
     function discoverArea(areaId) {
         if (!explorationState) return;
         
+        // Save current node positions before re-rendering
+        saveNodePositions();
+        
         // Discover the area and propagate through pre-existing connections
         discoverWithPreexisting(areaId);
         
         saveExplorationState();
         if (currentGraphData) {
-            renderGraph(currentGraphData);
+            renderGraph(currentGraphData, true); // true = preserve positions
         }
     }
     
@@ -1734,8 +1737,47 @@
     
     let simulation = null;
     let currentGraphData = null;
+    let nodePositions = new Map(); // Store node positions to preserve layout
     
-    function renderGraph(graphData) {
+    function saveNodePositions() {
+        if (!simulation) return;
+        const nodes = simulation.nodes();
+        nodes.forEach(node => {
+            if (node.x !== undefined && node.y !== undefined) {
+                nodePositions.set(node.id, { x: node.x, y: node.y });
+            }
+        });
+    }
+    
+    function restoreNodePositions(nodes) {
+        nodes.forEach(node => {
+            const savedPos = nodePositions.get(node.id);
+            if (savedPos) {
+                node.x = savedPos.x;
+                node.y = savedPos.y;
+                // Fix position temporarily to prevent jumping
+                node.fx = savedPos.x;
+                node.fy = savedPos.y;
+            }
+        });
+    }
+    
+    function unfreezeNodes() {
+        if (!simulation) return;
+        // Unfreeze nodes after a short delay to allow new nodes to settle
+        setTimeout(() => {
+            simulation.nodes().forEach(node => {
+                // Only unfreeze if it was a restored node (has saved position)
+                if (nodePositions.has(node.id)) {
+                    node.fx = null;
+                    node.fy = null;
+                }
+            });
+            simulation.alpha(0.1).restart();
+        }, 500);
+    }
+    
+    function renderGraph(graphData, preservePositions = false) {
         currentGraphData = graphData;
         
         // Propagate discoveries through pre-existing connections (in case state was loaded before graph data)
@@ -1853,16 +1895,27 @@
             ? nodes.filter(d => d.explorationStatus.visible)
             : nodes;
         const visibleNodeIds = new Set(visibleNodes.map(d => d.id));
+        const discoveredNodeIds = explorationMode && explorationState 
+            ? new Set(explorationState.discovered) // Copy to avoid reference issues
+            : new Set(nodes.map(n => n.id));
         const visibleLinks = explorationMode
             ? links.filter(l => {
                 const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
                 const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-                return visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+                // Both nodes must be visible
+                if (!visibleNodeIds.has(sourceId) || !visibleNodeIds.has(targetId)) return false;
+                // At least one node must be discovered (don't show links between two undiscovered nodes)
+                return discoveredNodeIds.has(sourceId) || discoveredNodeIds.has(targetId);
             })
             : links;
         
         // Force simulation
         if (simulation) simulation.stop();
+        
+        // Restore positions if preserving layout
+        if (preservePositions) {
+            restoreNodePositions(visibleNodes);
+        }
         
         simulation = d3.forceSimulation(visibleNodes)
             .force("link", d3.forceLink(visibleLinks)
@@ -1872,10 +1925,15 @@
             .force("charge", d3.forceManyBody()
                 .strength(-300)
                 .distanceMax(500))
-            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("center", preservePositions ? null : d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius(30))
-            .force("x", d3.forceX(width / 2).strength(0.03))
-            .force("y", d3.forceY(height / 2).strength(0.03));
+            .force("x", d3.forceX(width / 2).strength(preservePositions ? 0.005 : 0.03))
+            .force("y", d3.forceY(height / 2).strength(preservePositions ? 0.005 : 0.03));
+        
+        // Unfreeze nodes after layout stabilizes
+        if (preservePositions) {
+            unfreezeNodes();
+        }
         
         // Draw links
         const link = container.append("g")
@@ -2237,6 +2295,12 @@
                 return { nodes: new Set([START_NODE]), links: new Set() };
             }
             
+            // In exploration mode, only traverse through discovered nodes
+            const canTraverse = (nodeId) => {
+                if (!explorationMode || !explorationState) return true;
+                return explorationState.discovered.has(nodeId);
+            };
+            
             const visited = new Set([START_NODE]);
             const queue = [[START_NODE, [], []]]; // [nodeId, pathNodes, pathLinks]
             
@@ -2250,6 +2314,8 @@
                     const targetId = getNodeId(link.target);
                     
                     if (visited.has(targetId)) continue;
+                    // In exploration mode, skip undiscovered nodes (unless it's the final target)
+                    if (targetId !== targetNodeId && !canTraverse(targetId)) continue;
                     visited.add(targetId);
                     
                     const newPathNodes = [...pathNodes, currentId];
@@ -2270,6 +2336,8 @@
                     const sourceId = getNodeId(link.source);
                     
                     if (visited.has(sourceId)) continue;
+                    // In exploration mode, skip undiscovered nodes (unless it's the final target)
+                    if (sourceId !== targetNodeId && !canTraverse(sourceId)) continue;
                     visited.add(sourceId);
                     
                     const newPathNodes = [...pathNodes, currentId];
