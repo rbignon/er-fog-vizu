@@ -576,6 +576,25 @@
             stroke-width: 4px !important;
         }
         
+        /* When dimmed is applied on top of frontier highlighting (e.g., when clicking a node) */
+        .node.frontier-highlight.dimmed circle,
+        .node.access-highlight.dimmed circle {
+            opacity: 0.2 !important;
+            filter: none !important;
+        }
+        
+        .node.frontier-highlight.dimmed text,
+        .node.access-highlight.dimmed text {
+            fill: #a09080 !important;
+            opacity: 0.2 !important;
+        }
+        
+        .link.frontier-highlight.dimmed {
+            stroke-opacity: 0.1 !important;
+            stroke-width: 2px !important;
+            filter: none !important;
+        }
+        
         @keyframes pulse-frontier {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.2); }
@@ -2479,6 +2498,11 @@
         function resetHighlight() {
             node.classed("highlighted", false).classed("dimmed", false);
             link.classed("highlighted", false).classed("dimmed", false);
+            
+            // Re-apply frontier highlighting if it was active
+            if (frontierHighlightActive) {
+                highlightFrontier();
+            }
         }
         
         function updateVisibility() {
