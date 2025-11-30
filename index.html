@@ -556,12 +556,14 @@
             animation: pulse-frontier 1.5s ease-in-out infinite;
         }
         
+        /*
         .node.access-highlight circle {
             fill: #50c080 !important;
             stroke: #70e0a0 !important;
             stroke-width: 3px;
             filter: drop-shadow(0 0 8px #50c080);
         }
+            */
         
         .node.frontier-highlight text,
         .node.access-highlight text {
@@ -1617,6 +1619,7 @@
     let explorationState = null; // { discovered: Set<string>, tags: Map<string, string[]> }
     let currentSeed = null;
     let frontierHighlightActive = false;
+    let currentZoomTransform = null; // Preserve zoom state across re-renders
     
     const STORAGE_KEY_PREFIX = 'er-fog-exploration-';
     const AVAILABLE_TAGS = [
@@ -1865,9 +1868,15 @@
             .scaleExtent([0.1, 4])
             .on("zoom", (event) => {
                 container.attr("transform", event.transform);
+                currentZoomTransform = event.transform; // Save current zoom state
             });
         
         svg.call(zoom);
+        
+        // Restore zoom if preserving positions
+        if (preservePositions && currentZoomTransform) {
+            svg.call(zoom.transform, currentZoomTransform);
+        }
         
         // Arrow markers
         const defs = svg.append("defs");
