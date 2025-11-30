@@ -338,6 +338,70 @@
             color: #5a5040;
         }
         
+        #search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1a1a1c;
+            border: 1px solid #3a3020;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        
+        #search-dropdown.visible {
+            display: block;
+        }
+        
+        .search-result {
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2520;
+            transition: background 0.2s;
+        }
+        
+        .search-result:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result:hover {
+            background: rgba(100, 90, 70, 0.2);
+        }
+        
+        .search-result-name {
+            color: #c4b998;
+            font-size: 0.9rem;
+        }
+        
+        .search-result-status {
+            font-size: 0.75rem;
+            color: #6a6050;
+            margin-left: 8px;
+        }
+        
+        .search-result-btn {
+            background: linear-gradient(135deg, #4a7c59 0%, #3a5a45 100%);
+            border: none;
+            color: #e0f0e0;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .search-result-btn:hover {
+            background: linear-gradient(135deg, #5a9c69 0%, #4a7a55 100%);
+            transform: scale(1.05);
+        }
+        
         #new-file-btn {
             background: transparent;
             border: 1px solid #3a3020;
@@ -751,6 +815,29 @@
         #save-banner .new-btn:hover {
             border-color: #6a5040;
             color: #d4c4a8;
+        }
+        
+        /* Discovery notification */
+        #discovery-notification {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: linear-gradient(135deg, #2a4030 0%, #1a2820 100%);
+            border: 1px solid #4a8060;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 1000;
+            color: #a0e0c0;
+            font-size: 0.95rem;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        
+        #discovery-notification.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
         }
         
         /* Tooltip */
@@ -1168,6 +1255,7 @@
                 </div>
                 <div id="search-container">
                     <input type="text" id="search" placeholder="Search area...">
+                    <div id="search-dropdown"></div>
                 </div>
                 <div class="control-group">
                     <label title="When clicking a node, highlight the path from Chapel of Anticipation">
@@ -1663,6 +1751,80 @@
                 setTimeout(() => highlightFrontier(), 100);
             }
         }
+    }
+    
+    // Discover all nodes on the path from Starting Area to target
+    function discoverPathTo(targetId) {
+        if (!explorationState || !currentGraphData) return;
+        
+        const START_NODE = "Chapel of Anticipation";
+        
+        // BFS to find shortest path (using all nodes, not just discovered ones)
+        const visited = new Set([START_NODE]);
+        const queue = [[START_NODE, [START_NODE]]]; // [nodeId, path]
+        
+        while (queue.length > 0) {
+            const [currentId, path] = queue.shift();
+            
+            if (currentId === targetId) {
+                // Found the target - discover all nodes on the path
+                saveNodePositions();
+                
+                let discoveredCount = 0;
+                path.forEach(nodeId => {
+                    if (!explorationState.discovered.has(nodeId)) {
+                        discoverWithPreexisting(nodeId);
+                        discoveredCount++;
+                    }
+                });
+                
+                saveExplorationState();
+                renderGraph(currentGraphData, true);
+                
+                // Show notification
+                showDiscoveryNotification(discoveredCount, targetId);
+                
+                if (frontierHighlightActive) {
+                    setTimeout(() => highlightFrontier(), 100);
+                }
+                return;
+            }
+            
+            // Find all neighbors
+            currentGraphData.links.forEach(link => {
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetNodeId = typeof link.target === 'object' ? link.target.id : link.target;
+                
+                let neighborId = null;
+                if (sourceId === currentId) neighborId = targetNodeId;
+                else if (targetNodeId === currentId) neighborId = sourceId;
+                
+                if (neighborId && !visited.has(neighborId)) {
+                    visited.add(neighborId);
+                    queue.push([neighborId, [...path, neighborId]]);
+                }
+            });
+        }
+        
+        // No path found (shouldn't happen in a connected graph)
+        console.warn("No path found to", targetId);
+    }
+    
+    function showDiscoveryNotification(count, targetName) {
+        // Create or reuse notification element
+        let notification = document.getElementById('discovery-notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'discovery-notification';
+            document.body.appendChild(notification);
+        }
+        
+        notification.textContent = `✓ ${count} area${count > 1 ? 's' : ''} discovered on path to "${targetName}"`;
+        notification.classList.add('visible');
+        
+        setTimeout(() => {
+            notification.classList.remove('visible');
+        }, 3000);
     }
     
     function discoverWithPreexisting(areaId) {
@@ -2486,14 +2648,19 @@
         }
         
         // Search
+        const searchDropdown = document.getElementById('search-dropdown');
+        
         d3.select("#search").on("input", function() {
             const query = this.value.toLowerCase();
             
             if (!query) {
                 resetHighlight();
+                searchDropdown.classList.remove('visible');
+                searchDropdown.innerHTML = '';
                 return;
             }
             
+            // Highlight visible matching nodes (existing behavior)
             const matching = nodes.filter(n => n.id.toLowerCase().includes(query));
             const matchingIds = new Set(matching.map(n => n.id));
             
@@ -2501,6 +2668,60 @@
                 .classed("dimmed", n => !matchingIds.has(n.id));
             
             link.classed("dimmed", true).classed("highlighted", false);
+            
+            // Show dropdown with undiscovered matching zones (exploration mode only)
+            if (explorationMode && explorationState && currentGraphData) {
+                const allMatchingNodes = currentGraphData.nodes.filter(n => 
+                    n.id.toLowerCase().includes(query)
+                );
+                
+                // Filter to show only undiscovered nodes
+                const undiscoveredMatches = allMatchingNodes.filter(n => 
+                    !explorationState.discovered.has(n.id)
+                );
+                
+                if (undiscoveredMatches.length > 0) {
+                    let html = '';
+                    undiscoveredMatches.slice(0, 8).forEach(n => { // Limit to 8 results
+                        html += `
+                            <div class="search-result">
+                                <div>
+                                    <span class="search-result-name">${n.id}</span>
+                                    <span class="search-result-status">(not discovered)</span>
+                                </div>
+                                <button class="search-result-btn" data-node-id="${n.id}">🎯 I've reached</button>
+                            </div>
+                        `;
+                    });
+                    if (undiscoveredMatches.length > 8) {
+                        html += `<div class="search-result"><span class="search-result-status">... and ${undiscoveredMatches.length - 8} more</span></div>`;
+                    }
+                    searchDropdown.innerHTML = html;
+                    searchDropdown.classList.add('visible');
+                    
+                    // Add click handlers for "I've reached" buttons
+                    searchDropdown.querySelectorAll('.search-result-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const nodeId = this.getAttribute('data-node-id');
+                            discoverPathTo(nodeId);
+                            document.getElementById('search').value = '';
+                            searchDropdown.classList.remove('visible');
+                            searchDropdown.innerHTML = '';
+                            resetHighlight();
+                        });
+                    });
+                } else {
+                    searchDropdown.classList.remove('visible');
+                    searchDropdown.innerHTML = '';
+                }
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#search-container')) {
+                searchDropdown.classList.remove('visible');
+            }
         });
         
         // Simulation tick
