@@ -647,91 +647,36 @@
         /* Tags */
         .node-tags {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             margin-top: 6px;
             flex-wrap: wrap;
         }
         
         .node-tag {
-            font-size: 0.7rem;
-            padding: 2px 6px;
+            font-size: 1.1rem;
+            padding: 4px;
             border-radius: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .node-tag.dangerous {
-            background: rgba(180, 60, 60, 0.3);
-            color: #e08080;
-            border: 1px solid #a04040;
-        }
-        
-        .node-tag.later {
-            background: rgba(100, 100, 180, 0.3);
-            color: #a0a0e0;
-            border: 1px solid #6060a0;
-        }
-        
-        .node-tag.explored {
-            background: rgba(60, 140, 100, 0.3);
-            color: #80d0a0;
-            border: 1px solid #40a070;
-        }
-        
-        .node-tag.custom {
-            background: rgba(140, 120, 80, 0.3);
-            color: #d0c0a0;
-            border: 1px solid #a09060;
-        }
-        
-        /* Tag selector in tooltip */
-        .tag-selector {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #3a3020;
-        }
-        
-        .tag-selector-title {
-            font-size: 0.8rem;
-            color: #9a8d75;
-            margin-bottom: 6px;
-        }
-        
-        .tag-buttons {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-        
-        .tag-btn {
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 4px;
-            cursor: pointer;
+            cursor: default;
             transition: all 0.2s;
-            border: 1px solid transparent;
-            background: rgba(50, 45, 35, 0.5);
-            color: #9a8d75;
+            opacity: 1;
         }
         
-        .tag-btn:hover {
-            background: rgba(80, 70, 50, 0.6);
-            color: #d4c4a8;
+        .node-tag.inactive {
+            opacity: 0.3;
+            filter: grayscale(0.8);
         }
         
-        .tag-btn.active {
-            border-color: currentColor;
+        .node-tag.clickable {
+            cursor: pointer;
         }
         
-        .tag-btn.dangerous { color: #e08080; }
-        .tag-btn.dangerous.active { background: rgba(180, 60, 60, 0.3); }
+        .node-tag.clickable:hover {
+            transform: scale(1.2);
+            opacity: 1;
+            filter: none;
+        }
         
-        .tag-btn.later { color: #a0a0e0; }
-        .tag-btn.later.active { background: rgba(100, 100, 180, 0.3); }
-        
-        .tag-btn.explored { color: #80d0a0; }
-        .tag-btn.explored.active { background: rgba(60, 140, 100, 0.3); }
+        /* Tag selector styles removed - tags now inline */
         
         /* Discover button */
         .discover-btn {
@@ -1642,9 +1587,11 @@
     
     const STORAGE_KEY_PREFIX = 'er-fog-exploration-';
     const AVAILABLE_TAGS = [
-        { id: 'dangerous', label: '⚠️ Dangerous', color: 'dangerous' },
-        { id: 'later', label: '⏳ Later', color: 'later' },
-        { id: 'explored', label: '✓ Explored', color: 'explored' }
+        { id: 'warning', emoji: '⚠️' },
+        { id: 'later', emoji: '⏳' },
+        { id: 'loot', emoji: '💰' },
+        { id: 'done', emoji: '✅' },
+        { id: 'star', emoji: '⭐' }
     ];
     
     function getStorageKey(seed) {
@@ -1781,6 +1728,30 @@
             explorationState.tags.delete(areaId);
         }
         saveExplorationState();
+        
+        // Update node label in the graph to show/hide tag emojis
+        updateNodeLabel(areaId);
+    }
+    
+    function updateNodeLabel(areaId) {
+        const svg = d3.select("svg");
+        svg.selectAll(".node")
+            .filter(d => d.id === areaId)
+            .select("text")
+            .text(d => {
+                let label = d.id;
+                if (explorationMode && explorationState && explorationState.tags) {
+                    const tags = explorationState.tags.get(d.id);
+                    if (tags && tags.length > 0) {
+                        const emojis = tags.map(tagId => {
+                            const tag = AVAILABLE_TAGS.find(t => t.id === tagId);
+                            return tag ? tag.emoji : '';
+                        }).filter(e => e).join('');
+                        label += ' ' + emojis;
+                    }
+                }
+                return label;
+            });
     }
     
     function showSaveBanner(existingState) {
@@ -2084,7 +2055,19 @@
                 if (explorationMode && !d.explorationStatus.discovered) {
                     return "???";
                 }
-                return d.id;
+                // Add tag emojis after node name
+                let label = d.id;
+                if (explorationMode && explorationState && explorationState.tags) {
+                    const tags = explorationState.tags.get(d.id);
+                    if (tags && tags.length > 0) {
+                        const emojis = tags.map(tagId => {
+                            const tag = AVAILABLE_TAGS.find(t => t.id === tagId);
+                            return tag ? tag.emoji : '';
+                        }).filter(e => e).join('');
+                        label += ' ' + emojis;
+                    }
+                }
+                return label;
             });
         
         // Tooltip
@@ -2137,13 +2120,23 @@
                 
                 // Show tags if in exploration mode
                 if (explorationMode && explorationState) {
-                    const tags = explorationState.tags.get(d.id) || [];
-                    if (tags.length > 0) {
+                    const activeTags = explorationState.tags.get(d.id) || [];
+                    
+                    if (pinned) {
+                        // When pinned: show all tags, clickable to toggle
                         html += '<div class="node-tags">';
-                        tags.forEach(tagId => {
+                        AVAILABLE_TAGS.forEach(tag => {
+                            const isActive = activeTags.includes(tag.id);
+                            html += `<span class="node-tag clickable${isActive ? '' : ' inactive'}" data-tag-id="${tag.id}" data-node-id="${d.id}">${tag.emoji}</span>`;
+                        });
+                        html += '</div>';
+                    } else if (activeTags.length > 0) {
+                        // When hover: only show active tags (not clickable)
+                        html += '<div class="node-tags">';
+                        activeTags.forEach(tagId => {
                             const tag = AVAILABLE_TAGS.find(t => t.id === tagId);
                             if (tag) {
-                                html += `<span class="node-tag ${tag.color}">${tag.label}</span>`;
+                                html += `<span class="node-tag">${tag.emoji}</span>`;
                             }
                         });
                         html += '</div>';
@@ -2270,19 +2263,6 @@
                 html += `<button class="discover-btn" data-node-id="${d.id}">🔍 Discover this area</button>`;
             }
             
-            // Exploration mode: Tag selector for discovered nodes
-            if (explorationMode && explorationState && !isUndiscovered && pinned) {
-                const currentTags = explorationState.tags.get(d.id) || [];
-                html += '<div class="tag-selector">';
-                html += '<div class="tag-selector-title">🏷️ Add tags:</div>';
-                html += '<div class="tag-buttons">';
-                AVAILABLE_TAGS.forEach(tag => {
-                    const isActive = currentTags.includes(tag.id);
-                    html += `<button class="tag-btn ${tag.color}${isActive ? ' active' : ''}" data-tag-id="${tag.id}" data-node-id="${d.id}">${tag.label}</button>`;
-                });
-                html += '</div></div>';
-            }
-            
             return html;
         }
         
@@ -2307,18 +2287,14 @@
                 }
             });
             
-            tooltip.selectAll(".tag-btn").on("click", function() {
+            tooltip.selectAll(".node-tag.clickable").on("click", function() {
                 const tagId = this.getAttribute("data-tag-id");
                 const nodeId = this.getAttribute("data-node-id");
                 if (tagId && nodeId) {
                     toggleTag(nodeId, tagId);
-                    // Refresh the tooltip content - find node in current visible nodes
-                    const nodeData = visibleNodes.find(n => n.id === nodeId);
-                    if (nodeData) {
-                        // Toggle active state on the clicked button
-                        const btn = d3.select(this);
-                        btn.classed("active", !btn.classed("active"));
-                    }
+                    // Toggle inactive state on the clicked tag
+                    const tag = d3.select(this);
+                    tag.classed("inactive", !tag.classed("inactive"));
                 }
             });
         }
