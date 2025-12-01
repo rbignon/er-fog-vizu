@@ -3079,9 +3079,15 @@
     }
     
     // Handle window resize
+    let resizeTimeout;
     window.addEventListener('resize', () => {
         if (currentGraphData && mainUI.classList.contains('visible')) {
-            renderGraph(currentGraphData);
+            // Debounce resize to avoid too many re-renders
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                saveNodePositions();
+                renderGraph(currentGraphData, true);
+            }, 150);
         }
     });
     </script>
