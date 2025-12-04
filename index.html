@@ -1627,34 +1627,19 @@
         
         // Find key items for a given area (with fuzzy matching)
         findKeyItemsForArea(keyItems, areaName) {
-            // Exact match first
+            // Exact match only - no partial matching to avoid false positives
+            // (e.g., "Leyndell" matching "Ashen Leyndell - Before Divine Tower")
             if (keyItems.has(areaName)) {
                 return keyItems.get(areaName);
             }
-            
-            // Try partial match (item log zones are often more general)
-            const results = [];
-            for (const [zone, items] of keyItems) {
-                // Check if the area contains the zone name or vice versa
-                if (areaName.includes(zone) || zone.includes(areaName.split(' - ')[0])) {
-                    results.push(...items);
-                }
-            }
-            return [...new Set(results)]; // Remove duplicates
+            return [];
         },
         
         // Find which key item is in a given zone (for required items)
         findKeyItemInZone(keyItems, zoneName) {
-            // Exact match
+            // Exact match only - no fuzzy matching to avoid false positives
             if (keyItems.has(zoneName)) {
                 return keyItems.get(zoneName);
-            }
-            
-            // Fuzzy match
-            for (const [zone, items] of keyItems) {
-                if (zoneName.includes(zone) || zone.includes(zoneName)) {
-                    return items;
-                }
             }
             return [];
         }
