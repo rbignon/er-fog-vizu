@@ -1791,14 +1791,20 @@
                 return;
             }
             
-            // Find all neighbors
+            // Find all neighbors (respecting one-way links)
             currentGraphData.links.forEach(link => {
                 const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                 const targetNodeId = typeof link.target === 'object' ? link.target.id : link.target;
                 
                 let neighborId = null;
-                if (sourceId === currentId) neighborId = targetNodeId;
-                else if (targetNodeId === currentId) neighborId = sourceId;
+                // Can always follow link direction (source → target)
+                if (sourceId === currentId) {
+                    neighborId = targetNodeId;
+                }
+                // Can go backwards only if link is NOT one-way
+                else if (targetNodeId === currentId && !link.oneWay) {
+                    neighborId = sourceId;
+                }
                 
                 if (neighborId && !visited.has(neighborId)) {
                     visited.add(neighborId);
@@ -1837,7 +1843,7 @@
         // If graph data not yet available, propagation will happen in renderGraph
         if (!currentGraphData) return;
         
-        // Find all pre-existing connections and propagate discovery
+        // Find all pre-existing connections and propagate discovery (respecting one-way)
         const links = currentGraphData.links || [];
         links.forEach(link => {
             if (link.type !== 'preexisting') return;
@@ -1845,9 +1851,12 @@
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
             const targetId = typeof link.target === 'object' ? link.target.id : link.target;
             
+            // Can go FROM areaId TO target (following link direction)
             if (sourceId === areaId && !explorationState.discovered.has(targetId)) {
                 discoverWithPreexisting(targetId);
-            } else if (targetId === areaId && !explorationState.discovered.has(sourceId)) {
+            }
+            // Can go FROM target TO areaId only if link is NOT one-way (bidirectional)
+            else if (targetId === areaId && !explorationState.discovered.has(sourceId) && !link.oneWay) {
                 discoverWithPreexisting(sourceId);
             }
         });
@@ -1857,7 +1866,7 @@
     function propagatePreexistingDiscoveries() {
         if (!explorationState || !currentGraphData) return;
         
-        // Get current discovered areas and propagate each
+        // Get current discovered areas and propagate each (respecting one-way)
         const toPropagate = Array.from(explorationState.discovered);
         toPropagate.forEach(areaId => {
             const links = currentGraphData.links || [];
@@ -1867,9 +1876,12 @@
                 const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                 const targetId = typeof link.target === 'object' ? link.target.id : link.target;
                 
+                // Can go FROM areaId TO target (following link direction)
                 if (sourceId === areaId && !explorationState.discovered.has(targetId)) {
                     discoverWithPreexisting(targetId);
-                } else if (targetId === areaId && !explorationState.discovered.has(sourceId)) {
+                }
+                // Can go FROM target TO areaId only if link is NOT one-way
+                else if (targetId === areaId && !explorationState.discovered.has(sourceId) && !link.oneWay) {
                     discoverWithPreexisting(sourceId);
                 }
             });
@@ -1938,12 +1950,23 @@
             return { visible: true, discovered: true, accessible: true };
         }
         
-        // Check if accessible (connected to a discovered node)
+        // Check if accessible (can reach from a discovered node, respecting one-way links)
         const isAccessible = links.some(link => {
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
             const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-            return (sourceId === nodeId && explorationState.discovered.has(targetId)) ||
-                   (targetId === nodeId && explorationState.discovered.has(sourceId));
+            
+            // Case 1: Link goes FROM discovered node TO nodeId (following link direction)
+            if (sourceId !== nodeId && targetId === nodeId && explorationState.discovered.has(sourceId)) {
+                return true;
+            }
+            
+            // Case 2: Link goes FROM nodeId TO discovered node, but only if NOT one-way
+            // (we can traverse backwards through bidirectional links)
+            if (sourceId === nodeId && targetId !== nodeId && explorationState.discovered.has(targetId) && !link.oneWay) {
+                return true;
+            }
+            
+            return false;
         });
         
         return { visible: isAccessible, discovered: false, accessible: isAccessible };
@@ -1956,6 +1979,27 @@
     let simulation = null;
     let currentGraphData = null;
     let nodePositions = new Map(); // Store node positions to preserve layout
+    
+    // Compute oneWay property on links (a link is one-way if no reverse link exists)
+    function computeOneWayLinks(links) {
+        if (!links || links.length === 0) return;
+        
+        // Create a set of all link pairs as "source|target"
+        const linkPairs = new Set();
+        links.forEach(l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            linkPairs.add(`${sourceId}|${targetId}`);
+        });
+        
+        // Mark each link as one-way if no reverse link exists
+        links.forEach(l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            const reverseKey = `${targetId}|${sourceId}`;
+            l.oneWay = !linkPairs.has(reverseKey);
+        });
+    }
     
     function saveNodePositions() {
         if (!simulation) return;
@@ -1997,6 +2041,9 @@
     
     function renderGraph(graphData, preservePositions = false) {
         currentGraphData = graphData;
+        
+        // Compute one-way links (must be done before propagation)
+        computeOneWayLinks(graphData.links);
         
         // Propagate discoveries through pre-existing connections (in case state was loaded before graph data)
         if (explorationMode && explorationState) {
@@ -2565,8 +2612,11 @@
                     queue.push([targetId, newPathNodes, newPathLinks]);
                 }
                 
-                // Also follow incoming links (can go backwards through some connections)
+                // Also follow incoming links (can go backwards only through bidirectional links)
                 for (const link of conns.incoming) {
+                    // Skip one-way links (can't go backwards)
+                    if (link.oneWay) continue;
+                    
                     const sourceId = getNodeId(link.source);
                     
                     if (visited.has(sourceId)) continue;
