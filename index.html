@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elden Ring Fog Randomizer - Area Graph</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
         
@@ -271,6 +274,264 @@
             background: rgba(139, 69, 69, 0.5);
             border-color: #c96969;
             color: #ffcccc;
+        }
+        
+        /* Streamer mode button */
+        #streamer-mode-btn {
+            background: rgba(145, 70, 180, 0.3);
+            border: 1px solid #9046b4;
+            color: #d0a0e8;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        #streamer-mode-btn:hover,
+        #streamer-mode-btn.active {
+            background: rgba(145, 70, 180, 0.5);
+            border-color: #b060d4;
+            color: #e8c0ff;
+        }
+        
+        #streamer-mode-btn.connected {
+            background: rgba(70, 180, 100, 0.3);
+            border-color: #46b464;
+            color: #a0e8b0;
+        }
+        
+        /* Streamer modal */
+        #streamer-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #streamer-modal.visible {
+            display: flex;
+        }
+        
+        .streamer-modal-content {
+            position: relative;
+            background: linear-gradient(145deg, #1a1815 0%, #12100d 100%);
+            border: 1px solid #3a3530;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-close-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #6a5a4a;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        
+        .modal-close-btn:hover {
+            color: #c9a227;
+        }
+        
+        .streamer-modal-content h3 {
+            font-family: 'Cinzel', serif;
+            color: #c9a227;
+            margin-bottom: 16px;
+            font-size: 1.3rem;
+        }
+        
+        .streamer-modal-content p {
+            color: #9a8d75;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        
+        .session-code-display {
+            background: #0a0908;
+            border: 2px solid #c9a227;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        
+        .session-code-display .code {
+            font-family: 'Courier New', monospace;
+            font-size: 2rem;
+            color: #c9a227;
+            letter-spacing: 4px;
+            font-weight: bold;
+        }
+        
+        .session-code-input {
+            width: 100%;
+            padding: 12px;
+            background: #0a0908;
+            border: 1px solid #3a3530;
+            border-radius: 6px;
+            color: #c4b998;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        
+        .session-code-input:focus {
+            outline: none;
+            border-color: #c9a227;
+        }
+        
+        .streamer-modal-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .streamer-modal-buttons button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Cinzel', serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #c9a227 0%, #8b7355 100%);
+            border: none;
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+        
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 10px rgba(201, 162, 39, 0.4);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #5a5040;
+            color: #9a8d75;
+        }
+        
+        .btn-secondary:hover {
+            border-color: #8a7050;
+            color: #c4b998;
+        }
+        
+        .btn-viewer {
+            background: linear-gradient(135deg, #4682b4 0%, #2c5a7c 100%);
+            border: none;
+            color: #fff;
+        }
+        
+        .btn-viewer:hover {
+            box-shadow: 0 2px 10px rgba(70, 130, 180, 0.4);
+        }
+        
+        .btn-disconnect {
+            background: rgba(180, 70, 70, 0.3);
+            border: 1px solid #b44646;
+            color: #e8a0a0;
+        }
+        
+        .btn-disconnect:hover {
+            background: rgba(180, 70, 70, 0.5);
+        }
+        
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: rgba(70, 180, 100, 0.1);
+            border-radius: 6px;
+            color: #a0e8b0;
+            font-size: 0.85rem;
+        }
+        
+        .sync-status.disconnected {
+            background: rgba(180, 70, 70, 0.1);
+            color: #e8a0a0;
+        }
+        
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #46b464;
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-status.disconnected .sync-dot {
+            background: #b44646;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Viewer mode (OBS overlay) */
+        body.viewer-mode {
+            background: transparent !important;
+        }
+        
+        body.viewer-mode::before {
+            display: none;
+        }
+        
+        body.viewer-mode #header {
+            display: none !important;
+        }
+        
+        body.viewer-mode #legend,
+        body.viewer-mode #stats,
+        body.viewer-mode #help {
+            display: none !important;
+        }
+        
+        body.viewer-mode .tooltip {
+            display: none !important;
+        }
+        
+        body.viewer-mode #graph-container {
+            background: transparent !important;
+        }
+        
+        /* Improve text rendering in viewer mode */
+        body.viewer-mode .node text {
+            paint-order: stroke fill;
+            stroke: #000;
+            stroke-width: 3px;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            font-weight: 600;
+        }
+        
+        body.viewer-mode svg {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         label {
@@ -617,7 +878,7 @@
             stroke: #80c0f0 !important;
             stroke-width: 3px;
             filter: drop-shadow(0 0 8px #60a0d0);
-            animation: pulse-frontier 1.5s ease-in-out infinite;
+            /* Animation disabled for performance */
         }
         
         /*
@@ -659,10 +920,7 @@
             filter: none !important;
         }
         
-        @keyframes pulse-frontier {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-        }
+        /* pulse-frontier removed for performance */
         
         .node text {
             font-family: 'Crimson Text', serif;
@@ -700,12 +958,8 @@
         
         .node.undiscovered.accessible circle {
             stroke: #6a5a4a !important;
-            animation: pulse-accessible 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse-accessible {
-            0%, 100% { stroke-opacity: 0.5; }
-            50% { stroke-opacity: 1; }
+            stroke-opacity: 0.8;
+            /* Animation disabled for performance - was causing constant repaints */
         }
         
         /* Tags */
@@ -1158,7 +1412,8 @@
             #new-file-btn,
             #add-item-log-btn,
             #reset-exploration-btn,
-            #show-frontier-btn {
+            #show-frontier-btn,
+            #streamer-mode-btn {
                 display: none !important;
             }
             
@@ -1289,6 +1544,7 @@
                 <button id="show-frontier-btn" style="display: none;" title="Highlight unexplored areas and their access points">🔭 Frontier</button>
                 <button id="reset-exploration-btn" style="display: none;" title="Reset exploration progress">🔄 Reset</button>
                 <button id="add-item-log-btn" style="display: none;" title="Load Item Randomizer log to see key item locations">📦 Add Item Log</button>
+                <button id="streamer-mode-btn" style="display: none;" title="Sync with another device for streaming">🎬 Sync</button>
                 <button id="new-file-btn">Load New File</button>
             </div>
         </div>
@@ -2047,7 +2303,8 @@
         });
     }
     
-    function restoreNodePositions(nodes) {
+    function restoreNodePositions(nodes, links) {
+        // First pass: restore known positions
         nodes.forEach(node => {
             const savedPos = nodePositions.get(node.id);
             if (savedPos) {
@@ -2056,6 +2313,37 @@
                 // Fix position temporarily to prevent jumping
                 node.fx = savedPos.x;
                 node.fy = savedPos.y;
+            }
+        });
+        
+        // Second pass: initialize new nodes near their connected neighbors
+        nodes.forEach(node => {
+            if (node.x === undefined || node.y === undefined) {
+                // Find a connected node that has a position
+                const connectedLink = links?.find(l => {
+                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+                    return sourceId === node.id || targetId === node.id;
+                });
+                
+                if (connectedLink) {
+                    const sourceId = typeof connectedLink.source === 'object' ? connectedLink.source.id : connectedLink.source;
+                    const targetId = typeof connectedLink.target === 'object' ? connectedLink.target.id : connectedLink.target;
+                    const neighborId = sourceId === node.id ? targetId : sourceId;
+                    const neighborPos = nodePositions.get(neighborId);
+                    
+                    if (neighborPos) {
+                        // Place new node near neighbor with small random offset
+                        node.x = neighborPos.x + (Math.random() - 0.5) * 100;
+                        node.y = neighborPos.y + (Math.random() - 0.5) * 100;
+                    }
+                }
+                
+                // Fallback: place at center of screen
+                if (node.x === undefined) {
+                    node.x = window.innerWidth / 2 + (Math.random() - 0.5) * 200;
+                    node.y = window.innerHeight / 2 + (Math.random() - 0.5) * 200;
+                }
             }
         });
     }
@@ -2105,6 +2393,10 @@
             .on("zoom", (event) => {
                 container.attr("transform", event.transform);
                 currentZoomTransform = event.transform; // Save current zoom state
+                // Sync viewport to Firebase if connected as host
+                if (typeof syncViewportToFirebase === 'function') {
+                    syncViewportToFirebase();
+                }
             });
         
         svg.call(zoom);
@@ -2161,12 +2453,16 @@
         // Update exploration buttons visibility
         const resetBtn = document.getElementById('reset-exploration-btn');
         const frontierBtn = document.getElementById('show-frontier-btn');
+        const streamerBtn = document.getElementById('streamer-mode-btn');
         if (resetBtn) {
             resetBtn.style.display = explorationMode ? 'inline-block' : 'none';
         }
         if (frontierBtn) {
             frontierBtn.style.display = explorationMode ? 'inline-block' : 'none';
             frontierBtn.classList.remove('active'); // Reset state on re-render
+        }
+        if (streamerBtn) {
+            streamerBtn.style.display = explorationMode ? 'inline-block' : 'none';
         }
         
         // Find connections for each node and calculate degree
@@ -2226,7 +2522,7 @@
         
         // Restore positions if preserving layout
         if (preservePositions) {
-            restoreNodePositions(visibleNodes);
+            restoreNodePositions(visibleNodes, visibleLinks);
         }
         
         simulation = d3.forceSimulation(visibleNodes)
@@ -2239,8 +2535,8 @@
                 .distanceMax(500))
             .force("center", preservePositions ? null : d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius(30))
-            .force("x", d3.forceX(width / 2).strength(preservePositions ? 0.005 : 0.03))
-            .force("y", d3.forceY(height / 2).strength(preservePositions ? 0.005 : 0.03));
+            .force("x", preservePositions ? null : d3.forceX(width / 2).strength(0.03))
+            .force("y", preservePositions ? null : d3.forceY(height / 2).strength(0.03));
         
         // Unfreeze nodes after layout stabilizes
         if (preservePositions) {
@@ -2698,10 +2994,15 @@
                 resetHighlight();
                 hideTooltip();
                 selectedNode = null;
+                selectedNodeId = null; // Sync global
+                if (typeof syncToFirebase === 'function') {
+                    syncToFirebase();
+                }
                 return;
             }
             
             selectedNode = d.id;
+            selectedNodeId = d.id; // Sync global
             pinnedNodeId = d.id;
             tooltipPinned = true;
             
@@ -2726,12 +3027,21 @@
             
             link.classed("highlighted", l => connectedLinks.has(l))
                 .classed("dimmed", l => !connectedLinks.has(l));
+            
+            // Sync to Firebase
+            if (typeof syncToFirebase === 'function') {
+                syncToFirebase();
+            }
         });
         
         svg.on("click", () => {
             resetHighlight();
             hideTooltip();
             selectedNode = null;
+            selectedNodeId = null; // Sync global
+            if (typeof syncToFirebase === 'function') {
+                syncToFirebase();
+            }
         });
         
         function resetHighlight() {
@@ -2853,25 +3163,33 @@
             if (!event.active) simulation.alphaTarget(0);
             event.subject.fx = null;
             event.subject.fy = null;
+            
+            // Save and sync node positions to Firebase after drag
+            saveNodePositions();
+            if (typeof syncToFirebase === 'function') {
+                syncToFirebase();
+            }
         }
         
-        // Initial zoom to fit
-        setTimeout(() => {
-            const bounds = container.node().getBBox();
-            const fullWidth = bounds.width;
-            const fullHeight = bounds.height;
-            const midX = bounds.x + fullWidth / 2;
-            const midY = bounds.y + fullHeight / 2;
-            
-            const scale = 0.8 / Math.max(fullWidth / width, fullHeight / height);
-            const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
-            
-            svg.transition()
-                .duration(750)
-                .call(zoom.transform, d3.zoomIdentity
-                    .translate(translate[0], translate[1])
-                    .scale(scale));
-        }, 2000);
+        // Initial zoom to fit - only on first render, not when preserving positions
+        if (!preservePositions) {
+            setTimeout(() => {
+                const bounds = container.node().getBBox();
+                const fullWidth = bounds.width;
+                const fullHeight = bounds.height;
+                const midX = bounds.x + fullWidth / 2;
+                const midY = bounds.y + fullHeight / 2;
+                
+                const scale = 0.8 / Math.max(fullWidth / width, fullHeight / height);
+                const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
+                
+                svg.transition()
+                    .duration(750)
+                    .call(zoom.transform, d3.zoomIdentity
+                        .translate(translate[0], translate[1])
+                        .scale(scale));
+            }, 2000);
+        }
     }
     
     // ============================================================
@@ -3089,6 +3407,11 @@
         if (currentGraphData) {
             renderGraph(currentGraphData);
         }
+        
+        // Sync UI state to Firebase
+        if (typeof syncToFirebase === 'function') {
+            syncToFirebase();
+        }
     });
     
     modeExplorerBtn.addEventListener('click', () => {
@@ -3113,6 +3436,11 @@
         if (currentGraphData) {
             renderGraph(currentGraphData);
         }
+        
+        // Sync UI state to Firebase
+        if (typeof syncToFirebase === 'function') {
+            syncToFirebase();
+        }
     });
     
     resetExplorationBtn.addEventListener('click', () => {
@@ -3133,6 +3461,18 @@
             highlightFrontier();
         } else {
             clearFrontierHighlight();
+        }
+        
+        // Sync UI state to Firebase
+        if (typeof syncToFirebase === 'function') {
+            syncToFirebase();
+        }
+    });
+    
+    // Sync "Path from start" checkbox to Firebase when changed
+    document.getElementById('show-path-from-start').addEventListener('change', () => {
+        if (typeof syncToFirebase === 'function') {
+            syncToFirebase();
         }
     });
     
@@ -3206,8 +3546,809 @@
             }, 150);
         }
     });
+    
+    // ==========================================
+    // STREAMER MODE - Firebase Sync
+    // ==========================================
+    
+    // Firebase configuration
+    // You need to create a Firebase project and replace these values
+    // Instructions: https://console.firebase.google.com/
+    // 1. Create a new project
+    // 2. Go to Project Settings > General > Your apps > Web app
+    // 3. Copy the config values below
+    // 4. Enable Realtime Database in the Firebase console
+    // 5. Set database rules to: { "rules": { ".read": true, ".write": true } }
+    const FIREBASE_CONFIG = {
+        apiKey: "AIzaSyCVsW7f5oMCStDgwHSOcafYwfr8o-O7vd0",
+        authDomain: "er-fog-sync.firebaseapp.com",
+        databaseURL: "https://er-fog-sync-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "er-fog-sync",
+        storageBucket: "er-fog-sync.firebasestorage.app",
+        messagingSenderId: "357546558960",
+        appId: "1:357546558960:web:ef5b9f87154ecded060935"
+    };
+    
+    let firebaseApp = null;
+    let firebaseDb = null;
+    let currentSessionCode = null;
+    let sessionRef = null;
+    let isStreamerHost = false;
+    let viewportSyncThrottle = null;
+    let lastSyncedViewport = null;
+    let isRenderingGraph = false; // Flag to prevent sync during render
+    
+    // Check for viewer mode in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const isViewerMode = urlParams.get('viewer') === 'true';
+    const urlSessionCode = urlParams.get('session');
+    
+    if (isViewerMode) {
+        document.body.classList.add('viewer-mode');
+        
+        // If we have a session code, skip upload screen and connect directly
+        if (urlSessionCode) {
+            // Show a connecting message instead of upload screen
+            const uploadScreen = document.getElementById('upload-screen');
+            if (uploadScreen) {
+                uploadScreen.innerHTML = `
+                    <div style="text-align: center; color: #c9a227;">
+                        <h2 style="font-family: 'Cinzel', serif; margin-bottom: 20px;">🎬 Viewer Mode</h2>
+                        <p style="color: #9a8d75;">Connecting to session <strong>${urlSessionCode}</strong>...</p>
+                        <p style="color: #6a5a4a; font-size: 0.9rem; margin-top: 20px;">Waiting for graph data from host</p>
+                    </div>
+                `;
+            }
+        }
+    }
+    
+    function initFirebase() {
+        if (firebaseApp) return true;
+        
+        try {
+            // Check if config is placeholder
+            if (FIREBASE_CONFIG.apiKey === "AIzaSyplaceholder") {
+                console.warn("Firebase not configured. Streamer sync disabled.");
+                return false;
+            }
+            
+            firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+            firebaseDb = firebase.database();
+            return true;
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            return false;
+        }
+    }
+    
+    function generateSessionCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding similar chars (0/O, 1/I)
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+    
+    // Track selected node for sync
+    let selectedNodeId = null;
+    
+    // Firebase doesn't allow ".", "#", "$", "/", "[", "]" in keys
+    function encodeFirebaseKey(key) {
+        return key
+            .replace(/\./g, '%2E')
+            .replace(/#/g, '%23')
+            .replace(/\$/g, '%24')
+            .replace(/\//g, '%2F')
+            .replace(/\[/g, '%5B')
+            .replace(/\]/g, '%5D');
+    }
+    
+    function decodeFirebaseKey(key) {
+        return key
+            .replace(/%2E/g, '.')
+            .replace(/%23/g, '#')
+            .replace(/%24/g, '$')
+            .replace(/%2F/g, '/')
+            .replace(/%5B/g, '[')
+            .replace(/%5D/g, ']');
+    }
+    
+    function encodeObjectKeys(obj) {
+        const encoded = {};
+        for (const [key, value] of Object.entries(obj)) {
+            encoded[encodeFirebaseKey(key)] = value;
+        }
+        return encoded;
+    }
+    
+    function decodeObjectKeys(obj) {
+        const decoded = {};
+        for (const [key, value] of Object.entries(obj)) {
+            decoded[decodeFirebaseKey(key)] = value;
+        }
+        return decoded;
+    }
+    
+    function getFullSyncState() {
+        // Save current positions before syncing
+        saveNodePositions();
+        
+        // Get current visual state from DOM
+        const nodeElements = d3.selectAll(".node");
+        const linkElements = d3.selectAll(".link");
+        
+        // Build nodes state
+        const nodesState = {};
+        if (currentGraphData && currentGraphData.nodes) {
+            currentGraphData.nodes.forEach(n => {
+                const pos = nodePositions.get(n.id);
+                const nodeEl = nodeElements.filter(d => d.id === n.id);
+                const tags = explorationState?.tags.get(n.id) || [];
+                const discovered = explorationState?.discovered.has(n.id) || false;
+                
+                nodesState[encodeFirebaseKey(n.id)] = {
+                    x: pos ? pos.x : 0,
+                    y: pos ? pos.y : 0,
+                    visible: !nodeEl.empty() && nodeEl.style("display") !== "none",
+                    highlighted: !nodeEl.empty() && nodeEl.classed("highlighted"),
+                    dimmed: !nodeEl.empty() && nodeEl.classed("dimmed"),
+                    discovered: discovered,
+                    tags: tags,
+                    isBoss: n.isBoss || false,
+                    scaling: n.scaling || null
+                };
+            });
+        }
+        
+        // Build links state
+        const linksState = {};
+        if (currentGraphData && currentGraphData.links) {
+            currentGraphData.links.forEach(l => {
+                const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+                
+                // Find the link element
+                const linkEl = linkElements.filter(d => {
+                    const dSourceId = typeof d.source === 'object' ? d.source.id : d.source;
+                    const dTargetId = typeof d.target === 'object' ? d.target.id : d.target;
+                    return dSourceId === sourceId && dTargetId === targetId;
+                });
+                
+                linksState[encodeFirebaseKey(sourceId) + '->' + encodeFirebaseKey(targetId)] = {
+                    visible: !linkEl.empty() && linkEl.style("display") !== "none",
+                    highlighted: !linkEl.empty() && linkEl.classed("highlighted"),
+                    dimmed: !linkEl.empty() && linkEl.classed("dimmed"),
+                    type: l.type || null,
+                    oneWay: l.oneWay || false
+                };
+            });
+        }
+        
+        // Viewport
+        const viewport = {
+            x: currentZoomTransform?.x || 0,
+            y: currentZoomTransform?.y || 0,
+            k: currentZoomTransform?.k || 1,
+            hostWidth: window.innerWidth,
+            hostHeight: window.innerHeight
+        };
+        
+        return {
+            created: Date.now(),
+            viewport: viewport,
+            selectedNodeId: selectedNodeId ? encodeFirebaseKey(selectedNodeId) : null,
+            nodes: nodesState,
+            links: linksState
+        };
+    }
+    
+    async function createSession() {
+        if (!initFirebase()) {
+            alert("Firebase is not configured. Please set up Firebase credentials in the code.");
+            return;
+        }
+        
+        currentSessionCode = generateSessionCode();
+        isStreamerHost = true;
+        
+        sessionRef = firebaseDb.ref('sessions/' + currentSessionCode);
+        
+        // Initialize session data with full state
+        await sessionRef.set(getFullSyncState());
+        
+        // Listen for changes from other clients (in case we become a viewer later)
+        listenToSession();
+        
+        showConnectedUI();
+        
+        console.log("Session created:", currentSessionCode);
+    }
+    
+    async function joinSession(code) {
+        if (!initFirebase()) {
+            alert("Firebase is not configured. Please set up Firebase credentials in the code.");
+            return;
+        }
+        
+        code = code.toUpperCase().trim();
+        
+        // Check if session exists
+        const snapshot = await firebaseDb.ref('sessions/' + code).once('value');
+        if (!snapshot.exists()) {
+            alert("Session not found. Please check the code and try again.");
+            return;
+        }
+        
+        currentSessionCode = code;
+        isStreamerHost = false;
+        sessionRef = firebaseDb.ref('sessions/' + currentSessionCode);
+        
+        // Load initial data
+        const data = snapshot.val();
+        applySessionData(data);
+        
+        // Listen for changes
+        listenToSession();
+        
+        showConnectedUI();
+    }
+    
+    let viewerUpdateThrottle = null;
+    let pendingViewerData = null;
+    
+    function listenToSession() {
+        if (!sessionRef) return;
+        
+        console.log("Starting Firebase listener, isStreamerHost:", isStreamerHost);
+        
+        sessionRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && !isStreamerHost) {
+                // Throttle updates on viewer side to reduce CPU usage
+                pendingViewerData = data;
+                if (!viewerUpdateThrottle) {
+                    viewerUpdateThrottle = setTimeout(() => {
+                        viewerUpdateThrottle = null;
+                        if (pendingViewerData) {
+                            applySessionData(pendingViewerData);
+                            pendingViewerData = null;
+                        }
+                    }, 150); // Max ~6 updates per second
+                }
+            }
+        });
+    }
+    
+    function applyViewport(vp) {
+        if (!vp || vp.x === undefined) return;
+        
+        // Don't apply viewport during rendering
+        if (isRenderingGraph) {
+            setTimeout(() => applyViewport(vp), 100);
+            return;
+        }
+        
+        // Apply viewport transform directly
+        const svg = d3.select("svg");
+        const g = svg.select("g");
+        
+        if (!svg.node() || !g.node()) {
+            setTimeout(() => applyViewport(vp), 200);
+            return;
+        }
+        
+        // Check if viewport actually changed
+        if (lastSyncedViewport !== null &&
+            Math.abs(vp.x - lastSyncedViewport.x) <= 1 &&
+            Math.abs(vp.y - lastSyncedViewport.y) <= 1 &&
+            Math.abs(vp.k - lastSyncedViewport.k) <= 0.01) {
+            console.log("Viewport unchanged, skipping");
+            return;
+        }
+        
+        lastSyncedViewport = { x: vp.x, y: vp.y, k: vp.k };
+        
+        // Calculate adjusted coordinates based on window size difference
+        const viewerWidth = window.innerWidth;
+        const viewerHeight = window.innerHeight;
+        const hostWidth = vp.hostWidth || viewerWidth;
+        const hostHeight = vp.hostHeight || viewerHeight;
+        
+        // Calculate what point was at the center of the host's screen
+        const hostCenterX = (hostWidth / 2 - vp.x) / vp.k;
+        const hostCenterY = (hostHeight / 2 - vp.y) / vp.k;
+        
+        // Calculate translation to put that same point at the center of viewer's screen
+        const x = viewerWidth / 2 - hostCenterX * vp.k;
+        const y = viewerHeight / 2 - hostCenterY * vp.k;
+        
+        const newTransform = d3.zoomIdentity.translate(x, y).scale(vp.k);
+        
+        // Apply transform directly to the group
+        g.transition()
+            .duration(300)
+            .attr("transform", `translate(${x},${y}) scale(${vp.k})`);
+        
+        currentZoomTransform = newTransform;
+        
+        console.log("Applied viewport:", { hostX: vp.x, hostY: vp.y, k: vp.k, hostSize: [hostWidth, hostHeight] }, 
+                    "-> viewer:", { x, y, viewerSize: [viewerWidth, viewerHeight] });
+    }
+    
+    function applySessionData(data) {
+        if (!data) return;
+        
+        const hasNodes = data.nodes && Object.keys(data.nodes).length > 0;
+        const hasLinks = data.links && Object.keys(data.links).length > 0;
+        
+        console.log("applySessionData:", {
+            hasViewport: !!data.viewport,
+            hasNodes: hasNodes,
+            hasLinks: hasLinks,
+            nodeCount: hasNodes ? Object.keys(data.nodes).length : 0
+        });
+        
+        // If viewer doesn't have graph data yet, build it from received nodes/links
+        if (hasNodes && !currentGraphData) {
+            console.log("Building graph data from received state...");
+            
+            // Build graph data structure
+            const nodes = [];
+            const discovered = new Set();
+            const tags = new Map();
+            
+            for (const [encodedId, nodeState] of Object.entries(data.nodes)) {
+                const id = decodeFirebaseKey(encodedId);
+                nodes.push({
+                    id: id,
+                    isBoss: nodeState.isBoss || false,
+                    scaling: nodeState.scaling || null,
+                    x: nodeState.x,
+                    y: nodeState.y
+                });
+                
+                // Populate nodePositions
+                if (nodeState.x !== undefined && nodeState.y !== undefined) {
+                    nodePositions.set(id, { x: nodeState.x, y: nodeState.y });
+                }
+                
+                // Track discovered and tags
+                if (nodeState.discovered) discovered.add(id);
+                if (nodeState.tags && nodeState.tags.length > 0) {
+                    tags.set(id, nodeState.tags);
+                }
+            }
+            
+            // Build links
+            const links = [];
+            if (hasLinks) {
+                for (const [linkKey, linkState] of Object.entries(data.links)) {
+                    const [encodedSource, encodedTarget] = linkKey.split('->');
+                    links.push({
+                        source: decodeFirebaseKey(encodedSource),
+                        target: decodeFirebaseKey(encodedTarget),
+                        type: linkState.type || 'fog',
+                        oneWay: linkState.oneWay || false
+                    });
+                }
+            }
+            
+            currentGraphData = { nodes, links };
+            explorationState = { discovered, tags };
+            
+            console.log("Built graph with", nodes.length, "nodes and", links.length, "links");
+            
+            // Show main UI
+            const uploadScreen = document.getElementById('upload-screen');
+            uploadScreen.classList.remove('visible');
+            uploadScreen.style.display = 'none';
+            document.getElementById('main-ui').classList.add('visible');
+            
+            // Render the graph
+            renderGraph(currentGraphData, true);
+            
+            // Apply visual state after render
+            setTimeout(() => {
+                applyVisualState(data);
+                if (data.viewport) applyViewport(data.viewport);
+            }, 500);
+            
+            return;
+        }
+        
+        // Graph already exists - just apply visual state updates
+        applyVisualState(data);
+        
+        // Apply viewport
+        if (data.viewport && !isStreamerHost) {
+            applyViewport(data.viewport);
+        }
+    }
+    
+    // Apply visual state (positions, highlights, dimming) to existing graph
+    function applyVisualState(data) {
+        if (!data.nodes) return;
+        
+        const d3Nodes = simulation ? simulation.nodes() : [];
+        let positionsChanged = false;
+        let explorationChanged = false;
+        
+        // Apply node states
+        for (const [encodedId, nodeState] of Object.entries(data.nodes)) {
+            const id = decodeFirebaseKey(encodedId);
+            
+            // Update position in simulation nodes
+            const simNode = d3Nodes.find(n => n.id === id);
+            if (simNode && nodeState.x !== undefined && nodeState.y !== undefined) {
+                if (Math.abs(simNode.x - nodeState.x) > 1 || Math.abs(simNode.y - nodeState.y) > 1) {
+                    simNode.x = nodeState.x;
+                    simNode.y = nodeState.y;
+                    simNode.fx = nodeState.x;
+                    simNode.fy = nodeState.y;
+                    nodePositions.set(id, { x: nodeState.x, y: nodeState.y });
+                    positionsChanged = true;
+                }
+            }
+            
+            // Update exploration state and track changes
+            if (explorationState) {
+                const wasDiscovered = explorationState.discovered.has(id);
+                const isDiscovered = nodeState.discovered || false;
+                if (wasDiscovered !== isDiscovered) {
+                    explorationChanged = true;
+                    if (isDiscovered) {
+                        explorationState.discovered.add(id);
+                    } else {
+                        explorationState.discovered.delete(id);
+                    }
+                }
+                
+                const oldTags = explorationState.tags.get(id) || [];
+                const newTags = nodeState.tags || [];
+                if (JSON.stringify(oldTags) !== JSON.stringify(newTags)) {
+                    explorationChanged = true;
+                    if (newTags.length > 0) {
+                        explorationState.tags.set(id, newTags);
+                    } else {
+                        explorationState.tags.delete(id);
+                    }
+                }
+            }
+        }
+        
+        // If exploration state changed, re-render to update labels
+        if (explorationChanged && currentGraphData) {
+            isRenderingGraph = true;
+            saveNodePositions();
+            renderGraph(currentGraphData, true);
+            // Re-apply visual state after render
+            setTimeout(() => {
+                isRenderingGraph = false;
+                applyVisualStateWithoutRerender(data);
+            }, 100);
+            return;
+        }
+        
+        applyVisualClasses(data);
+        
+        // Update positions in DOM if changed
+        if (positionsChanged) {
+            updatePositionsInDOM(d3Nodes);
+        }
+        
+        // Update selectedNodeId
+        selectedNodeId = data.selectedNodeId ? decodeFirebaseKey(data.selectedNodeId) : null;
+    }
+    
+    // Apply visual classes without triggering re-render
+    function applyVisualStateWithoutRerender(data) {
+        if (!data.nodes) return;
+        applyVisualClasses(data);
+        selectedNodeId = data.selectedNodeId ? decodeFirebaseKey(data.selectedNodeId) : null;
+    }
+    
+    // Helper to apply CSS classes to nodes and links
+    function applyVisualClasses(data) {
+        // Apply visual classes to nodes
+        d3.selectAll(".node").each(function(d) {
+            const encodedId = encodeFirebaseKey(d.id);
+            const nodeState = data.nodes[encodedId];
+            if (nodeState) {
+                d3.select(this)
+                    .classed("highlighted", nodeState.highlighted || false)
+                    .classed("dimmed", nodeState.dimmed || false);
+            }
+        });
+        
+        // Apply visual classes to links
+        if (data.links) {
+            d3.selectAll(".link").each(function(d) {
+                const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+                const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+                const linkKey = `${encodeFirebaseKey(sourceId)}->${encodeFirebaseKey(targetId)}`;
+                const linkState = data.links[linkKey];
+                if (linkState) {
+                    d3.select(this)
+                        .classed("highlighted", linkState.highlighted || false)
+                        .classed("dimmed", linkState.dimmed || false);
+                }
+            });
+        }
+    }
+    
+    // Helper to update positions in DOM
+    function updatePositionsInDOM(d3Nodes) {
+        d3.selectAll(".node")
+            .transition()
+            .duration(300)
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+        
+        d3.selectAll(".link")
+            .transition()
+            .duration(300)
+            .attr("d", d => {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy) * 2;
+                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            });
+        
+        // Unfreeze nodes after delay
+        setTimeout(() => {
+            d3Nodes.forEach(n => { n.fx = null; n.fy = null; });
+        }, 500);
+    }
+    
+    function syncToFirebase() {
+        if (!sessionRef || !isStreamerHost) return;
+        sessionRef.update(getFullSyncState());
+    }
+    
+    function syncViewportToFirebase() {
+        if (!sessionRef || !isStreamerHost || isRenderingGraph) return;
+        
+        // Throttle to max ~3 updates per second (lightweight sync)
+        if (viewportSyncThrottle) return;
+        
+        viewportSyncThrottle = setTimeout(() => {
+            viewportSyncThrottle = null;
+            
+            // Only sync viewport and node positions (lightweight)
+            saveNodePositions();
+            
+            const viewportData = {
+                viewport: {
+                    x: currentZoomTransform?.x || 0,
+                    y: currentZoomTransform?.y || 0,
+                    k: currentZoomTransform?.k || 1,
+                    hostWidth: window.innerWidth,
+                    hostHeight: window.innerHeight
+                }
+            };
+            
+            // Add node positions
+            const positions = {};
+            nodePositions.forEach((pos, id) => {
+                positions[encodeFirebaseKey(id)] = { x: pos.x, y: pos.y };
+            });
+            viewportData.nodePositions = positions;
+            
+            // Partial update (merge with existing data)
+            sessionRef.update(viewportData).catch(err => {
+                console.error("Viewport sync error:", err);
+            });
+        }, 300);
+    }
+    
+    function disconnectSession() {
+        if (sessionRef) {
+            sessionRef.off(); // Remove all listeners
+        }
+        
+        currentSessionCode = null;
+        sessionRef = null;
+        isStreamerHost = false;
+        lastSyncedViewport = null;
+        
+        showDisconnectedUI();
+    }
+    
+    function showConnectedUI() {
+        document.getElementById('session-code-display').textContent = currentSessionCode;
+        document.getElementById('streamer-not-connected').style.display = 'none';
+        document.getElementById('streamer-connected').style.display = 'block';
+        document.getElementById('streamer-mode-btn').classList.add('connected');
+        
+        // Update viewer URL
+        const viewerUrl = window.location.origin + window.location.pathname + 
+                         '?viewer=true&session=' + currentSessionCode;
+        document.getElementById('viewer-url-input').value = viewerUrl;
+        
+        // Update sync status
+        const syncStatus = document.getElementById('sync-status');
+        syncStatus.classList.remove('disconnected');
+        syncStatus.querySelector('span:last-child').textContent = isStreamerHost ? 
+            'Connected as host (controlling)' : 'Connected as viewer (syncing)';
+    }
+    
+    function showDisconnectedUI() {
+        document.getElementById('streamer-not-connected').style.display = 'block';
+        document.getElementById('streamer-connected').style.display = 'none';
+        document.getElementById('join-form').style.display = 'none';
+        document.getElementById('streamer-mode-btn').classList.remove('connected');
+    }
+    
+    function openViewerWindow() {
+        if (!currentSessionCode) return;
+        
+        const viewerUrl = window.location.origin + window.location.pathname + 
+                         '?viewer=true&session=' + currentSessionCode;
+        window.open(viewerUrl, '_blank', 'width=800,height=600');
+        
+        // Close the modal
+        document.getElementById('streamer-modal').classList.remove('visible');
+    }
+    
+    // Hook into existing functions to sync changes
+    const originalDiscoverArea = discoverArea;
+    discoverArea = function(areaId) {
+        // Block viewport sync during render to avoid multiple updates
+        isRenderingGraph = true;
+        originalDiscoverArea(areaId);
+        // Wait for simulation to calculate new node positions before syncing
+        setTimeout(() => {
+            isRenderingGraph = false;
+            saveNodePositions();
+            syncToFirebase();
+        }, 600);
+    };
+    
+    const originalUndiscoverArea = undiscoverArea;
+    undiscoverArea = function(areaId) {
+        isRenderingGraph = true;
+        originalUndiscoverArea(areaId);
+        setTimeout(() => {
+            isRenderingGraph = false;
+            saveNodePositions();
+            syncToFirebase();
+        }, 600);
+    };
+    
+    const originalToggleTag = toggleTag;
+    toggleTag = function(nodeId, tagId) {
+        originalToggleTag(nodeId, tagId);
+        syncToFirebase();
+    };
+    
+    // Streamer mode UI event listeners (wait for modal to be in DOM)
+    function initStreamerUI() {
+        const streamerModal = document.getElementById('streamer-modal');
+        if (!streamerModal) {
+            // Modal not yet in DOM, retry
+            setTimeout(initStreamerUI, 50);
+            return;
+        }
+        
+        document.getElementById('streamer-mode-btn').addEventListener('click', () => {
+            streamerModal.classList.add('visible');
+        });
+        
+        document.getElementById('close-streamer-modal').addEventListener('click', () => {
+            streamerModal.classList.remove('visible');
+        });
+        
+        document.getElementById('create-session-btn').addEventListener('click', createSession);
+        
+        document.getElementById('join-session-btn').addEventListener('click', () => {
+            document.getElementById('join-form').style.display = 'block';
+            document.getElementById('join-code-input').focus();
+        });
+        
+        document.getElementById('join-cancel-btn').addEventListener('click', () => {
+            document.getElementById('join-form').style.display = 'none';
+        });
+        
+        document.getElementById('join-confirm-btn').addEventListener('click', () => {
+            const code = document.getElementById('join-code-input').value;
+            if (code.length >= 4) {
+                joinSession(code);
+            }
+        });
+        
+        document.getElementById('join-code-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const code = e.target.value;
+                if (code.length >= 4) {
+                    joinSession(code);
+                }
+            }
+        });
+        
+        document.getElementById('disconnect-btn').addEventListener('click', disconnectSession);
+        
+        document.getElementById('open-viewer-btn').addEventListener('click', openViewerWindow);
+        
+        document.getElementById('copy-url-btn').addEventListener('click', () => {
+            const urlInput = document.getElementById('viewer-url-input');
+            urlInput.select();
+            navigator.clipboard.writeText(urlInput.value).then(() => {
+                const btn = document.getElementById('copy-url-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                setTimeout(() => { btn.textContent = originalText; }, 2000);
+            });
+        });
+        
+        // Close modal when clicking outside
+        streamerModal.addEventListener('click', (e) => {
+            if (e.target.id === 'streamer-modal') {
+                streamerModal.classList.remove('visible');
+            }
+        });
+        
+    }
+    
+    // Start initialization (will retry until modal is in DOM)
+    setTimeout(initStreamerUI, 0);
+    
+    // Auto-join session if URL has session code (for viewer mode)
+    // This runs immediately, doesn't wait for modal
+    if (urlSessionCode && isViewerMode) {
+        console.log("Viewer mode: auto-joining session", urlSessionCode);
+        // Small delay to ensure Firebase SDK is loaded
+        setTimeout(() => {
+            joinSession(urlSessionCode);
+        }, 100);
+    }
     </script>
     
+    <!-- Streamer mode modal -->
+    <div id="streamer-modal">
+        <div class="streamer-modal-content">
+            <button id="close-streamer-modal" class="modal-close-btn">&times;</button>
+            <h3>🎬 Streamer Sync</h3>
+            <div id="streamer-not-connected">
+                <p>Synchronize the graph between two devices in real-time. Perfect for streaming overlays!</p>
+                <div class="streamer-modal-buttons">
+                    <button id="create-session-btn" class="btn-primary">Create Session</button>
+                    <button id="join-session-btn" class="btn-secondary">Join Session</button>
+                </div>
+                <div id="join-form" style="display: none; margin-top: 16px;">
+                    <input type="text" class="session-code-input" id="join-code-input" placeholder="Enter code" maxlength="8">
+                    <div class="streamer-modal-buttons">
+                        <button id="join-confirm-btn" class="btn-primary">Connect</button>
+                        <button id="join-cancel-btn" class="btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            <div id="streamer-connected" style="display: none;">
+                <div class="session-code-display">
+                    <div class="code" id="session-code-display">----</div>
+                    <p style="font-size: 0.8rem; color: #6a5a4a; margin-top: 8px;">Share this code with the other device</p>
+                </div>
+                <div class="viewer-url-display" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.8rem; color: #6a5a4a; display: block; margin-bottom: 6px;">Viewer URL (for OBS):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="viewer-url-input" readonly style="flex: 1; padding: 8px; background: #0a0908; border: 1px solid #3a3530; border-radius: 4px; color: #c9a227; font-size: 0.75rem; font-family: monospace;">
+                        <button id="copy-url-btn" class="btn-secondary" style="padding: 8px 12px; white-space: nowrap;">📋 Copy</button>
+                    </div>
+                </div>
+                <div class="sync-status" id="sync-status">
+                    <span class="sync-dot"></span>
+                    <span>Connected and syncing</span>
+                </div>
+                <div class="streamer-modal-buttons" style="margin-top: 16px;">
+                    <button id="open-viewer-btn" class="btn-viewer">📺 Open Viewer</button>
+                    <button id="disconnect-btn" class="btn-disconnect">Disconnect</button>
+                </div>
+                <p style="font-size: 0.8rem; color: #6a5a4a; margin-top: 12px;">
+                    💡 Use "Open Viewer" to get a clean overlay for OBS (transparent background, no controls).
+                </p>
+            </div>
+        </div>
+    </div>
+
     <!-- Demo data (generated from seed 561689827) -->
     <script>
     const DEMO_DATA = {"nodes": [{"id": "Chapel of Anticipation", "isBoss": false, "scaling": "tier 1, previously 6", "order": 0}, {"id": "Stormveil Castle after Gate", "isBoss": false, "scaling": "tier 1, previously 3", "order": 1}, {"id": "Stormveil Castle before Gate", "isBoss": false, "scaling": null, "order": 2}, {"id": "Shadow Keep - Church District", "isBoss": false, "scaling": "tier 2, previously 27", "order": 3}, {"id": "Shadow Keep - Drained Church District", "isBoss": false, "scaling": "tier 2, previously 27", "order": 4}, {"id": "Volcano Manor - Room Before Sending Gate", "isBoss": false, "scaling": "tier 2, previously 11", "order": 5}, {"id": "Volcano Manor after Temple of Eiglay", "isBoss": false, "scaling": null, "order": 6}, {"id": "Before Astel, Naturalborn of the Void", "isBoss": false, "scaling": "tier 2", "order": 7}, {"id": "Mt. Gelmir - Gelmir Hero's Grave - Red Wolf of the Champion", "isBoss": true, "scaling": "tier 1, previously 9", "order": 8}, {"id": "Shadow Keep - Tree-Worship Sanctum", "isBoss": false, "scaling": "tier 2", "order": 9}, {"id": "Scaduview - Commander Gaius", "isBoss": true, "scaling": "tier 3, previously 29", "order": 10}, {"id": "Ancient Ruins of Rauh - Romina, Saint of the Bud", "isBoss": true, "scaling": "tier 1, previously 32", "order": 11}, {"id": "Roundtable Hold Balcony", "isBoss": false, "scaling": "tier 2, previously 2", "order": 12}, {"id": "Roundtable Hold", "isBoss": false, "scaling": "tier 4, previously 2", "order": 13}, {"id": "Volcano Manor - Hallway Opposite Sending Gate", "isBoss": false, "scaling": null, "order": 14}, {"id": "Volcano Manor - Temple of Eiglay", "isBoss": false, "scaling": null, "order": 15}, {"id": "Limgrave - Fringefolk Hero's Grave - Ulcerated Tree Spirit", "isBoss": true, "scaling": "tier 3, previously 6", "order": 16}, {"id": "Farum Azula - Dragon Temple", "isBoss": false, "scaling": "tier 4, previously 14", "order": 17}, {"id": "Farum Azula - Crumbling Beast Grave Depths", "isBoss": false, "scaling": null, "order": 18}, {"id": "Volcano Manor - Temple of Eiglay Shortcut Elevator", "isBoss": false, "scaling": "tier 5", "order": 19}, {"id": "Midra's Manse - Midra, Lord of Frenzied Flame", "isBoss": true, "scaling": "tier 4, previously 32", "order": 20}, {"id": "Farum Azula - Dragon Temple Transept", "isBoss": false, "scaling": "tier 4, previously 14", "order": 21}, {"id": "Red Wolf of Radagon", "isBoss": true, "scaling": "tier 5, previously 6", "order": 22}, {"id": "Academy of Raya Lucaria after Red Wolf", "isBoss": false, "scaling": null, "order": 23}, {"id": "Nokron from Limgrave", "isBoss": false, "scaling": "tier 4, previously 9", "order": 24}, {"id": "Ashen Leyndell - Queen's Bedchamber", "isBoss": false, "scaling": "tier 5, previously 16", "order": 25}, {"id": "Ancient Ruins of Rauh - West", "isBoss": false, "scaling": "tier 4, previously 30", "order": 26}, {"id": "Ancient Ruins of Rauh - East", "isBoss": false, "scaling": null, "order": 27}, {"id": "Ashen Leyndell - Erdtree Sanctuary", "isBoss": true, "scaling": "tier 6, previously 15", "order": 28}, {"id": "Ashen Leyndell - Behind Erdtree Sanctuary", "isBoss": false, "scaling": "tier 5, previously 15", "order": 29}, {"id": "Ashen Leyndell", "isBoss": false, "scaling": "tier 5, previously 15", "order": 30}, {"id": "Maliketh the Black Blade", "isBoss": false, "scaling": null, "order": 31}, {"id": "Stone Coffin Fissure - Putrescent Knight", "isBoss": true, "scaling": "tier 6, previously 28", "order": 32}, {"id": "Stone Coffin Fissure - Before Boss", "isBoss": false, "scaling": null, "order": 33}, {"id": "Altus Plateau - Sainted Hero's Grave - Ancient Hero of Zamor", "isBoss": true, "scaling": "tier 5, previously 8", "order": 34}, {"id": "Regal Ancestor Spirit", "isBoss": true, "scaling": "tier 6, previously 9", "order": 35}, {"id": "Mohg, the Omen", "isBoss": true, "scaling": "tier 7, previously 13", "order": 36}, {"id": "Nokron before Mimic Tear", "isBoss": false, "scaling": "tier 4, previously 9", "order": 37}, {"id": "Ashen Leyndell - South of Erdtree Sanctuary", "isBoss": false, "scaling": "tier 8", "order": 38}, {"id": "Subterranean Shunning-Grounds - Ashen Capital Dropdown", "isBoss": false, "scaling": "tier 5", "order": 39}, {"id": "Mohg, Lord of Blood", "isBoss": true, "scaling": "tier 9, previously 18", "order": 40}, {"id": "Deeproot Depths", "isBoss": false, "scaling": "tier 5, previously 11", "order": 41}, {"id": "Deeproot Depths from Proscription", "isBoss": false, "scaling": null, "order": 42}, {"id": "Siofra River", "isBoss": false, "scaling": null, "order": 43}, {"id": "Stone Coffin Fissure", "isBoss": false, "scaling": "tier 5, previously 27", "order": 44}, {"id": "Midra's Manse", "isBoss": false, "scaling": "tier 8, previously 31", "order": 45}, {"id": "Subterranean Shunning-Grounds", "isBoss": false, "scaling": "tier 5, previously 13", "order": 46}, {"id": "Subterranean Shunning-Grounds - From Royal Capital", "isBoss": false, "scaling": null, "order": 47}, {"id": "Volcano Manor Prison Town Church", "isBoss": false, "scaling": "tier 4", "order": 48}, {"id": "Leyndell - Divine Bridge", "isBoss": false, "scaling": "tier 5, previously 10", "order": 49}, {"id": "Leyndell", "isBoss": false, "scaling": null, "order": 50}, {"id": "Leyndell - Divine Bridge (taking the elevator from Fortified Manor)", "isBoss": false, "scaling": null, "order": 51}, {"id": "Volcano Manor Prison Town", "isBoss": false, "scaling": "tier 13, previously 11", "order": 52}, {"id": "Stone Coffin Fissure - After Waypoint", "isBoss": false, "scaling": "tier 5, previously 27", "order": 53}, {"id": "Mimic Tear", "isBoss": true, "scaling": "tier 9, previously 9", "order": 54}, {"id": "Ruin-Strewn Precipice", "isBoss": false, "scaling": "tier 5, previously 7", "order": 55}, {"id": "Ancient Ruins of Rauh - Belfry Area", "isBoss": false, "scaling": "tier 4, previously 30", "order": 56}, {"id": "Academy of Raya Lucaria", "isBoss": false, "scaling": null, "order": 57}, {"id": "Ancient Ruins of Rauh - Central Stairs", "isBoss": false, "scaling": "tier 4, previously 30", "order": 58}, {"id": "Redmane Castle Boss", "isBoss": true, "scaling": "tier 10, previously 8", "order": 59}, {"id": "After Redmane Castle Boss", "isBoss": false, "scaling": null, "order": 60}, {"id": "Valiant Gargoyles", "isBoss": true, "scaling": "tier 9, previously 9", "order": 61}, {"id": "Academy of Raya Lucaria Main Entrance", "isBoss": false, "scaling": "tier 5, previously 6", "order": 62}, {"id": "Farum Azula - Dragon Temple Balcony", "isBoss": false, "scaling": "tier 5", "order": 63}, {"id": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man", "isBoss": true, "scaling": "tier 10, previously 23", "order": 64}, {"id": "Castle Sol", "isBoss": false, "scaling": "tier 8, previously 13", "order": 65}, {"id": "Royal Knight Loretta", "isBoss": true, "scaling": "tier 11, previously 6", "order": 66}, {"id": "Godskin Duo", "isBoss": true, "scaling": "tier 11, previously 14", "order": 67}, {"id": "Mt. Gelmir - Gelmir Hero's Grave", "isBoss": false, "scaling": "tier 13, previously 9", "order": 68}, {"id": "Gravesite Plain - Belurat Gaol", "isBoss": false, "scaling": "tier 4, previously 21", "order": 69}, {"id": "Volcano Manor - Audience Pathway", "isBoss": false, "scaling": "tier 5", "order": 70}, {"id": "Academy of Raya Lucaria Rooftops", "isBoss": false, "scaling": null, "order": 71}, {"id": "Scadu Altus - Manus Metyr", "isBoss": true, "scaling": "tier 9, previously 25", "order": 72}, {"id": "Volcano Manor Entrance", "isBoss": false, "scaling": "tier 13, previously 10", "order": 73}, {"id": "Before Volcano Manor Entrance", "isBoss": false, "scaling": null, "order": 74}, {"id": "Leyndell - Erdtree Entrance", "isBoss": false, "scaling": "tier 13", "order": 75}, {"id": "After Dragonkin Soldier of Nokstella", "isBoss": false, "scaling": "tier 4", "order": 76}, {"id": "Subterranean Shunning-Grounds - From Royal Capital (backwards through the door from Royal Capital)", "isBoss": false, "scaling": null, "order": 77}, {"id": "Charo's Hidden Grave - Lamenter's Gaol", "isBoss": false, "scaling": "tier 10, previously 26", "order": 78}, {"id": "Cave of Knowledge - Soldier of Godrick", "isBoss": true, "scaling": "tier 10, previously 1", "order": 79}, {"id": "Shaded Castle - Elemer of the Briar", "isBoss": true, "scaling": "tier 9, previously 9", "order": 80}, {"id": "Leyndell - Erdtree Sanctuary Stairs", "isBoss": false, "scaling": null, "order": 81}, {"id": "Deeproot Depths - Fia's Champions", "isBoss": true, "scaling": "tier 11, previously 11", "order": 82}, {"id": "Gravesite Plain - Dragon's Pit - After Boss", "isBoss": false, "scaling": "tier 10", "order": 83}, {"id": "Elphael, Brace of the Haligtree", "isBoss": false, "scaling": "tier 12, previously 19", "order": 84}, {"id": "After Commander Niall", "isBoss": false, "scaling": "tier 11", "order": 85}, {"id": "Scadu Altus - Bonny Gaol - Curseblade Labirith", "isBoss": true, "scaling": "tier 12, previously 25", "order": 86}, {"id": "Fire Giant", "isBoss": true, "scaling": "tier 11, previously 14", "order": 87}, {"id": "Ainsel River Main", "isBoss": false, "scaling": "tier 5, previously 11", "order": 88}, {"id": "Lake of Rot", "isBoss": false, "scaling": null, "order": 89}, {"id": "Redmane Castle", "isBoss": false, "scaling": "tier 10, previously 8", "order": 90}, {"id": "Charo's Hidden Grave - Lower Lamenter's Gaol", "isBoss": false, "scaling": "tier 11, previously 26", "order": 91}, {"id": "Academy of Raya Lucaria - Grand Library", "isBoss": true, "scaling": "tier 11, previously 11", "order": 92}, {"id": "Leyndell - before Divine Tower", "isBoss": false, "scaling": "tier 13, previously 10", "order": 93}, {"id": "Astel, Naturalborn of the Void", "isBoss": true, "scaling": "tier 11, previously 11", "order": 94}, {"id": "Shadow Keep - Golden Hippopotamus", "isBoss": true, "scaling": "tier 12, previously 27", "order": 95}, {"id": "Specimen Storehouse", "isBoss": false, "scaling": "tier 12, previously 29", "order": 96}, {"id": "Specimen Storehouse - Back Section", "isBoss": false, "scaling": null, "order": 97}, {"id": "After Loretta, Knight of the Haligtree", "isBoss": false, "scaling": "tier 13", "order": 98}, {"id": "Leyndell - Erdtree Sanctuary", "isBoss": true, "scaling": "tier 13, previously 11", "order": 99}, {"id": "Leyndell - Queen's Bedchamber", "isBoss": false, "scaling": null, "order": 100}, {"id": "Charo's Hidden Grave - Lamenter's Gaol Before Boss", "isBoss": false, "scaling": "tier 12", "order": 101}, {"id": "Capital Outskirts - Auriza Hero's Grave - Crucible Knight Ordovis", "isBoss": true, "scaling": "tier 13, previously 9", "order": 102}, {"id": "Castle Ensis - Rellana, Twin Moon Knight", "isBoss": true, "scaling": "tier 13, previously 26", "order": 103}, {"id": "Jagged Peak - Bayle", "isBoss": true, "scaling": "tier 14, previously 34", "order": 104}, {"id": "Specimen Storehouse - Before Messmer", "isBoss": false, "scaling": "tier 14", "order": 105}, {"id": "Belurat", "isBoss": false, "scaling": "tier 12, previously 22", "order": 106}, {"id": "Belurat Swamp", "isBoss": false, "scaling": null, "order": 107}, {"id": "Gravesite Plain - Ruined Forge Lava Intake", "isBoss": false, "scaling": "tier 14, previously 23", "order": 108}, {"id": "Loretta, Knight of the Haligtree", "isBoss": true, "scaling": "tier 14, previously 18", "order": 109}, {"id": "Finger Birthing Grounds - Metyr, Mother of Fingers", "isBoss": true, "scaling": "tier 15, previously 32", "order": 110}, {"id": "Divine Tower of East Altus", "isBoss": false, "scaling": "tier 11, previously 12", "order": 111}, {"id": "Enir-Ilim - Belurat", "isBoss": false, "scaling": null, "order": 112}, {"id": "Belurat - After Divine Beast Dancing Lion", "isBoss": false, "scaling": "tier 12", "order": 113}, {"id": "Specimen Storehouse - Messmer the Impaler", "isBoss": true, "scaling": "tier 15, previously 30", "order": 114}, {"id": "Belurat - Stairs before Enir-Ilim", "isBoss": false, "scaling": "tier 12, previously 22", "order": 115}, {"id": "Enir-Ilim", "isBoss": false, "scaling": null, "order": 116}, {"id": "Farum Azula Rooftop and Bridge", "isBoss": false, "scaling": "tier 19, previously 14", "order": 117}, {"id": "Altus Plateau - Sainted Hero's Grave", "isBoss": false, "scaling": "tier 12, previously 8", "order": 118}, {"id": "Volcano Manor - Abductor Virgins", "isBoss": true, "scaling": "tier 12, previously 8", "order": 119}, {"id": "Before Radahn", "isBoss": false, "scaling": "tier 17", "order": 120}, {"id": "Castle Ensis", "isBoss": false, "scaling": "tier 13, previously 24", "order": 121}, {"id": "Malenia, Blade of Miquella", "isBoss": true, "scaling": "tier 17, previously 20", "order": 122}, {"id": "Capital Outskirts - Auriza Hero's Grave", "isBoss": false, "scaling": "tier 20, previously 9", "order": 123}, {"id": "Before Regal Ancestor Spirit", "isBoss": false, "scaling": "tier 17", "order": 124}, {"id": "Leonine Misbegotten", "isBoss": true, "scaling": "tier 18, previously 3", "order": 125}, {"id": "Deep Ainsel Well", "isBoss": false, "scaling": "tier 17", "order": 126}, {"id": "Magma Wrym Makar", "isBoss": true, "scaling": "tier 18, previously 7", "order": 127}, {"id": "Siofra River before Ancestor Spirit", "isBoss": false, "scaling": "tier 19", "order": 128}, {"id": "Rauh Base - Taylew's Ruined Forge", "isBoss": false, "scaling": "tier 19, previously 26", "order": 129}, {"id": "Leyndell - Elden Throne", "isBoss": true, "scaling": "tier 20, previously 11", "order": 130}, {"id": "Leyndell - Behind Erdtree Sanctuary", "isBoss": false, "scaling": "tier 13", "order": 131}, {"id": "Flame Peak - Giant-Conquering Hero's Grave - Ancient Hero of Zamor", "isBoss": true, "scaling": "tier 22, previously 12", "order": 132}, {"id": "Liurnia - Caria Manor", "isBoss": false, "scaling": "tier 13, previously 6", "order": 133}, {"id": "Liurnia Behind Caria Manor", "isBoss": false, "scaling": null, "order": 134}, {"id": "Shaded Castle", "isBoss": false, "scaling": "tier 13, previously 9", "order": 135}, {"id": "Farum Azula - Dragon Temple Lift", "isBoss": false, "scaling": "tier 19, previously 14", "order": 136}, {"id": "Ancestor Spirit", "isBoss": true, "scaling": "tier 23, previously 6", "order": 137}, {"id": "Leyndell - Erdtree Sanctuary Treasure", "isBoss": false, "scaling": "tier 21", "order": 138}, {"id": "Shadow Keep", "isBoss": false, "scaling": "tier 23, previously 27", "order": 139}, {"id": "Weeping Peninsula - Beside the Rampart Gaol", "isBoss": false, "scaling": "tier 13, previously 3", "order": 140}, {"id": "Weeping Peninsula - Castle Morne", "isBoss": false, "scaling": null, "order": 141}, {"id": "Ainsel River Downstream", "isBoss": false, "scaling": "tier 23, previously 5", "order": 142}, {"id": "Above Ainsel River Downstream", "isBoss": false, "scaling": null, "order": 143}, {"id": "Farum Azula - Crumbling Beast Grave", "isBoss": false, "scaling": null, "order": 144}, {"id": "Hidden Path to the Haligtree", "isBoss": false, "scaling": "tier 17, previously 16", "order": 145}, {"id": "Starscourge Radahn", "isBoss": true, "scaling": "tier 24, previously 10", "order": 146}, {"id": "Limgrave - Fringefolk Hero's Grave", "isBoss": false, "scaling": "tier 23, previously 6", "order": 147}, {"id": "Stranded Graveyard", "isBoss": false, "scaling": null, "order": 148}, {"id": "Belurat - Divine Beast Dancing Lion", "isBoss": true, "scaling": "tier 26, previously 24", "order": 149}, {"id": "Scadu Altus - Ruined Forge of Starfall Past", "isBoss": false, "scaling": "tier 24, previously 25", "order": 150}, {"id": "Dragonlord Placidusax", "isBoss": true, "scaling": "tier 27, previously 17", "order": 151}, {"id": "Gravesite Plain - Belurat Gaol - Demi-Human Swordmaster Onze", "isBoss": true, "scaling": "tier 25, previously 21", "order": 152}, {"id": "After Mohg, Lord of Blood", "isBoss": false, "scaling": "tier 20", "order": 153}, {"id": "Charo's Hidden Grave - Lamenter's Gaol - Lamenter", "isBoss": true, "scaling": "tier 26, previously 26", "order": 154}, {"id": "Scadu Altus - Bonny Gaol", "isBoss": false, "scaling": "tier 20, previously 25", "order": 155}, {"id": "Rykard, Lord of Blasphemy", "isBoss": true, "scaling": "tier 28, previously 12", "order": 156}, {"id": "Volcano Manor Drawing Room", "isBoss": false, "scaling": "tier 27, previously 11", "order": 157}, {"id": "Margit, the Fell Omen", "isBoss": true, "scaling": "tier 28, previously 3", "order": 158}, {"id": "Nokron - Aqueduct-Facing Cliffs Room", "isBoss": false, "scaling": "tier 20", "order": 159}, {"id": "Scadu Altus - Darklight Catacombs - Jori, Elder Inquisitor", "isBoss": true, "scaling": "tier 29, previously 31", "order": 160}, {"id": "Nokron - Aqueduct-Facing Cliffs", "isBoss": false, "scaling": "tier 20, previously 9", "order": 161}, {"id": "Nokron - Ancestral Woods", "isBoss": false, "scaling": null, "order": 162}, {"id": "Above Frenzied Flame Proscription", "isBoss": false, "scaling": "tier 20", "order": 163}, {"id": "Haligtree Town", "isBoss": false, "scaling": "tier 20, previously 18", "order": 164}, {"id": "Frenzied Flame Proscription", "isBoss": false, "scaling": "tier 20, previously 13", "order": 165}, {"id": "Scaduview - Scadutree Chalice", "isBoss": false, "scaling": "tier 20, previously 29", "order": 166}, {"id": "Ashen Leyndell - Erdtree Entrance", "isBoss": false, "scaling": "tier 16", "order": 167}, {"id": "Dragonkin Soldier of Nokstella", "isBoss": true, "scaling": "tier 30, previously 5", "order": 168}, {"id": "Ashen Leyndell - Elden Throne", "isBoss": true, "scaling": "tier 31, previously 16", "order": 169}, {"id": "Divine Tower of East Altus Start", "isBoss": false, "scaling": "tier 20, previously 12", "order": 170}, {"id": "Divine Tower of East Altus Interior", "isBoss": false, "scaling": "tier 20", "order": 171}, {"id": "Commander Niall", "isBoss": true, "scaling": "tier 32, previously 13", "order": 172}, {"id": "Finger Ruins of Miyr", "isBoss": false, "scaling": "tier 20, previously 25", "order": 173}, {"id": "Nokron - Night's Sacred Grounds", "isBoss": false, "scaling": null, "order": 174}, {"id": "Nokron to Siofra Path", "isBoss": false, "scaling": "tier 32, previously 9", "order": 175}, {"id": "Mohgwyn Palace", "isBoss": false, "scaling": "tier 32, previously 17", "order": 176}, {"id": "Shadow Keep - West Rampart", "isBoss": false, "scaling": "tier 32, previously 27", "order": 177}, {"id": "Ancient Ruins of Rauh - After Romina", "isBoss": false, "scaling": "tier 32", "order": 178}, {"id": "Flame Peak - Giant-Conquering Hero's Grave", "isBoss": false, "scaling": "tier 32, previously 12", "order": 179}, {"id": "Cave of Knowledge - From Seaside Ruins", "isBoss": false, "scaling": "tier 32", "order": 180}, {"id": "Ashen Leyndell - before Divine Tower", "isBoss": false, "scaling": "tier 32, previously 15", "order": 181}, {"id": "Cave of Knowledge", "isBoss": false, "scaling": "tier 32, previously 1", "order": 182}, {"id": "Cave of Knowledge - After Soldier of Godrick", "isBoss": false, "scaling": null, "order": 183}, {"id": "Scadu Altus - Darklight Catacombs", "isBoss": false, "scaling": "tier 32, previously 28", "order": 184}, {"id": "Godrick the Grafted", "isBoss": true, "scaling": "tier 32, previously 4", "order": 185}, {"id": "Gravesite Plain - Dragon's Pit", "isBoss": false, "scaling": "tier 32, previously 23", "order": 186}, {"id": "Scadutree Base - Scadutree Avatar", "isBoss": true, "scaling": "tier 32, previously 28", "order": 187}, {"id": "Gravesite Plain - Dragon's Pit - Before Boss", "isBoss": false, "scaling": "tier 33", "order": 188}, {"id": "Stormveil Castle Throne Room", "isBoss": false, "scaling": "tier 32, previously 3", "order": 189}, {"id": "Stone Coffin Fissure - After Putrescent Knight", "isBoss": false, "scaling": "tier 33, previously 27", "order": 190}, {"id": "Academy of Raya Lucaria - Grand Library Chest", "isBoss": false, "scaling": "tier 32", "order": 191}, {"id": "Stone Platform", "isBoss": true, "scaling": "tier 17, previously 17", "order": 192}, {"id": "Enir-Ilim - After Leda", "isBoss": false, "scaling": null, "order": 193}, {"id": "Enir-Ilim - Promised Consort Radahn", "isBoss": true, "scaling": "tier 27, previously 33", "order": 194}], "links": [{"source": "Chapel of Anticipation", "target": "Stormveil Castle after Gate", "type": "random", "description": "Chapel of Anticipation (before Grafted Scion's arena) --> Stormveil Castle after Gate (before Godrick's arena)", "sourceDetails": "before Grafted Scion's arena", "targetDetails": "before Godrick's arena", "requiredItemFrom": null}, {"source": "Stormveil Castle before Gate", "target": "Stormveil Castle after Gate", "type": "preexisting", "description": "Stormveil Castle before Gate --> Stormveil Castle after Gate (with Rusty Key or talking to Gostoc), using an item from Ainsel River Downstream", "sourceDetails": "", "targetDetails": "with Rusty Key or talking to Gostoc", "requiredItemFrom": "Ainsel River Downstream"}, {"source": "Stormveil Castle after Gate", "target": "Stormveil Castle before Gate", "type": "preexisting", "description": "Stormveil Castle after Gate --> Stormveil Castle before Gate (opening the gate)", "sourceDetails": "", "targetDetails": "opening the gate", "requiredItemFrom": null}, {"source": "Stormveil Castle before Gate", "target": "Shadow Keep - Church District", "type": "random", "description": "Stormveil Castle before Gate (after Margit's arena) --> Shadow Keep - Church District (at the top of the elevator to Specimen Storehouse)", "sourceDetails": "after Margit's arena", "targetDetails": "at the top of the elevator to Specimen Storehouse", "requiredItemFrom": null}, {"source": "Shadow Keep - Church District", "target": "Shadow Keep - Drained Church District", "type": "preexisting", "description": "Shadow Keep - Church District --> Shadow Keep - Drained Church District (in map)", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": null}, {"source": "Shadow Keep - Church District", "target": "Volcano Manor - Room Before Sending Gate", "type": "random", "description": "Shadow Keep - Church District (at the tunnel entrance from Scadu Altus) --> Volcano Manor - Room Before Sending Gate (on the doorway on the second story opposite the Sending Gate)", "sourceDetails": "at the tunnel entrance from Scadu Altus", "targetDetails": "on the doorway on the second story opposite the Sending Gate", "requiredItemFrom": null}, {"source": "Volcano Manor after Temple of Eiglay", "target": "Volcano Manor - Room Before Sending Gate", "type": "preexisting", "description": "Volcano Manor after Temple of Eiglay --> Volcano Manor - Room Before Sending Gate (opening the door)", "sourceDetails": "", "targetDetails": "opening the door", "requiredItemFrom": null}, {"source": "Volcano Manor - Room Before Sending Gate", "target": "Before Astel, Naturalborn of the Void", "type": "random", "description": "Volcano Manor - Room Before Sending Gate (using the Sending Gate after Volcano Manor temple) --> Before Astel, Naturalborn of the Void (arriving in the area before Astel's arena)", "sourceDetails": "using the Sending Gate after Volcano Manor temple", "targetDetails": "arriving in the area before Astel's arena", "requiredItemFrom": null}, {"source": "Before Astel, Naturalborn of the Void", "target": "Mt. Gelmir - Gelmir Hero's Grave - Red Wolf of the Champion", "type": "random", "description": "Before Astel, Naturalborn of the Void (before Astel's arena) --> Mt. Gelmir - Gelmir Hero's Grave - Red Wolf of the Champion (return to entrance after Red Wolf of the Champion)", "sourceDetails": "before Astel's arena", "targetDetails": "return to entrance after Red Wolf of the Champion", "requiredItemFrom": null}, {"source": "Shadow Keep - Drained Church District", "target": "Shadow Keep - Tree-Worship Sanctum", "type": "preexisting", "description": "Shadow Keep - Drained Church District --> Shadow Keep - Tree-Worship Sanctum (in map)", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": null}, {"source": "Shadow Keep - Tree-Worship Sanctum", "target": "Scaduview - Commander Gaius", "type": "random", "description": "Shadow Keep - Tree-Worship Sanctum (before Scadutree Avatar's arena) --> Scaduview - Commander Gaius (at the front of Gaius's arena)", "sourceDetails": "before Scadutree Avatar's arena", "targetDetails": "at the front of Gaius's arena", "requiredItemFrom": null}, {"source": "Mt. Gelmir - Gelmir Hero's Grave - Red Wolf of the Champion", "target": "Ancient Ruins of Rauh - Romina, Saint of the Bud", "type": "random", "description": "Mt. Gelmir - Gelmir Hero's Grave - Red Wolf of the Champion (at the front of Red Wolf of the Champion's arena) --> Ancient Ruins of Rauh - Romina, Saint of the Bud (at the back of Romina's arena)", "sourceDetails": "at the front of Red Wolf of the Champion's arena", "targetDetails": "at the back of Romina's arena", "requiredItemFrom": null}, {"source": "Scaduview - Commander Gaius", "target": "Roundtable Hold Balcony", "type": "random", "description": "Scaduview - Commander Gaius (at the back of Gaius's arena) --> Roundtable Hold Balcony (in Roundtable Hold at the balcony overlooking the first floor)", "sourceDetails": "at the back of Gaius's arena", "targetDetails": "in Roundtable Hold at the balcony overlooking the first floor", "requiredItemFrom": null}, {"source": "Chapel of Anticipation", "target": "Roundtable Hold", "type": "preexisting", "description": "Chapel of Anticipation --> Roundtable Hold (accessing an overworld grace)", "sourceDetails": "", "targetDetails": "accessing an overworld grace", "requiredItemFrom": null}, {"source": "Volcano Manor - Room Before Sending Gate", "target": "Volcano Manor after Temple of Eiglay", "type": "preexisting", "description": "Volcano Manor - Room Before Sending Gate --> Volcano Manor after Temple of Eiglay (jumping into the lava behind the Sending Gate. this requires some vigor and flasks)", "sourceDetails": "", "targetDetails": "jumping into the lava behind the Sending Gate. this requires some vigor and flasks", "requiredItemFrom": null}, {"source": "Volcano Manor - Hallway Opposite Sending Gate", "target": "Volcano Manor after Temple of Eiglay", "type": "preexisting", "description": "Volcano Manor - Hallway Opposite Sending Gate --> Volcano Manor after Temple of Eiglay (jumping over the balcony)", "sourceDetails": "", "targetDetails": "jumping over the balcony", "requiredItemFrom": null}, {"source": "Volcano Manor - Temple of Eiglay", "target": "Volcano Manor after Temple of Eiglay", "type": "preexisting", "description": "Volcano Manor - Temple of Eiglay --> Volcano Manor after Temple of Eiglay (riding the elevator up and dropping down outside)", "sourceDetails": "", "targetDetails": "riding the elevator up and dropping down outside", "requiredItemFrom": null}, {"source": "Ancient Ruins of Rauh - Romina, Saint of the Bud", "target": "Limgrave - Fringefolk Hero's Grave - Ulcerated Tree Spirit", "type": "random", "description": "Ancient Ruins of Rauh - Romina, Saint of the Bud (at the front of Romina's arena) --> Limgrave - Fringefolk Hero's Grave - Ulcerated Tree Spirit (return to entrance after Ulcerated Tree Spirit)", "sourceDetails": "at the front of Romina's arena", "targetDetails": "return to entrance after Ulcerated Tree Spirit", "requiredItemFrom": null}, {"source": "Roundtable Hold", "target": "Farum Azula - Dragon Temple", "type": "random", "description": "Roundtable Hold (in Roundtable Hold in the main room) --> Farum Azula - Dragon Temple (before back right of Godskin Duo arena, down Dragon Temple stairs)", "sourceDetails": "in Roundtable Hold in the main room", "targetDetails": "before back right of Godskin Duo arena, down Dragon Temple stairs", "requiredItemFrom": null}, {"source": "Farum Azula - Crumbling Beast Grave Depths", "target": "Farum Azula - Dragon Temple", "type": "preexisting", "description": "Farum Azula - Crumbling Beast Grave Depths --> Farum Azula - Dragon Temple (dropping down to the platform before the Dragon Temple grace)", "sourceDetails": "", "targetDetails": "dropping down to the platform before the Dragon Temple grace", "requiredItemFrom": null}, {"source": "Volcano Manor after Temple of Eiglay", "target": "Volcano Manor - Temple of Eiglay Shortcut Elevator", "type": "preexisting", "description": "Volcano Manor after Temple of Eiglay --> Volcano Manor - Temple of Eiglay Shortcut Elevator (unlocking the elevator shortcut back to the temple)", "sourceDetails": "", "targetDetails": "unlocking the elevator shortcut back to the temple", "requiredItemFrom": null}, {"source": "Limgrave - Fringefolk Hero's Grave - Ulcerated Tree Spirit", "target": "Midra's Manse - Midra, Lord of Frenzied Flame", "type": "random", "description": "Limgrave - Fringefolk Hero's Grave - Ulcerated Tree Spirit (at the front of Ulcerated Tree Spirit's arena) --> Midra's Manse - Midra, Lord of Frenzied Flame (at the front of Midra's arena)", "sourceDetails": "at the front of Ulcerated Tree Spirit's arena", "targetDetails": "at the front of Midra's arena", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple", "target": "Farum Azula - Dragon Temple Transept", "type": "preexisting", "description": "Farum Azula - Dragon Temple --> Farum Azula - Dragon Temple Transept (jumping to the stairs west of the Dragon Temple grace and dropping down again)", "sourceDetails": "", "targetDetails": "jumping to the stairs west of the Dragon Temple grace and dropping down again", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple", "target": "Red Wolf of Radagon", "type": "random", "description": "Farum Azula - Dragon Temple (before back left of Godskin Duo arena, by the crumbled stairs) --> Red Wolf of Radagon (at the back left of Red Wolf's arena)", "sourceDetails": "before back left of Godskin Duo arena, by the crumbled stairs", "targetDetails": "at the back left of Red Wolf's arena", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria after Red Wolf", "target": "Red Wolf of Radagon", "type": "preexisting", "description": "Academy of Raya Lucaria after Red Wolf --> Red Wolf of Radagon (dropping down in the southeast corner of the courtyard)", "sourceDetails": "", "targetDetails": "dropping down in the southeast corner of the courtyard", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple", "target": "Nokron from Limgrave", "type": "random", "description": "Farum Azula - Dragon Temple (outside the balcony above Godskin Duo's arena) --> Nokron from Limgrave (at the start of Nokron from Limgrave)", "sourceDetails": "outside the balcony above Godskin Duo's arena", "targetDetails": "at the start of Nokron from Limgrave", "requiredItemFrom": null}, {"source": "Volcano Manor - Temple of Eiglay Shortcut Elevator", "target": "Ashen Leyndell - Queen's Bedchamber", "type": "random", "description": "Volcano Manor - Temple of Eiglay Shortcut Elevator (after Godskin Noble's arena to the back left, down the shortcut elevator) --> Ashen Leyndell - Queen's Bedchamber (before Hoarah Loux's arena)", "sourceDetails": "after Godskin Noble's arena to the back left, down the shortcut elevator", "targetDetails": "before Hoarah Loux's arena", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple Transept", "target": "Ancient Ruins of Rauh - West", "type": "random", "description": "Farum Azula - Dragon Temple Transept (up the stairs from Dragon Temple Transept) --> Ancient Ruins of Rauh - West (before Romina's arena)", "sourceDetails": "up the stairs from Dragon Temple Transept", "targetDetails": "before Romina's arena", "requiredItemFrom": null}, {"source": "Ancient Ruins of Rauh - East", "target": "Ancient Ruins of Rauh - West", "type": "preexisting", "description": "Ancient Ruins of Rauh - East --> Ancient Ruins of Rauh - West (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Queen's Bedchamber", "target": "Ashen Leyndell - Erdtree Sanctuary", "type": "preexisting", "description": "Ashen Leyndell - Queen's Bedchamber --> Ashen Leyndell - Erdtree Sanctuary (dropping into the boss fight)", "sourceDetails": "", "targetDetails": "dropping into the boss fight", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Queen's Bedchamber", "target": "Ashen Leyndell - Behind Erdtree Sanctuary", "type": "preexisting", "description": "Ashen Leyndell - Queen's Bedchamber --> Ashen Leyndell - Behind Erdtree Sanctuary (instead of entering the sanctuary, dropping down to the left)", "sourceDetails": "", "targetDetails": "instead of entering the sanctuary, dropping down to the left", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Queen's Bedchamber", "target": "Ashen Leyndell", "type": "preexisting", "description": "Ashen Leyndell - Queen's Bedchamber --> Ashen Leyndell (instead of entering the sanctuary, dropping down to the right)", "sourceDetails": "", "targetDetails": "instead of entering the sanctuary, dropping down to the right", "requiredItemFrom": null}, {"source": "Maliketh the Black Blade", "target": "Ashen Leyndell", "type": "random", "description": "Maliketh the Black Blade (warp after defeathing Maliketh, or repeating the warp using the grace) --> Ashen Leyndell (warp to the start of Ashen Leyndell)", "sourceDetails": "warp after defeathing Maliketh, or repeating the warp using the grace", "targetDetails": "warp to the start of Ashen Leyndell", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Queen's Bedchamber", "target": "Stone Coffin Fissure - Putrescent Knight", "type": "random", "description": "Ashen Leyndell - Queen's Bedchamber (outside of Gideon's arena at the base of a shortcut ladder, accessed from an open window on a second-floor rooftop) --> Stone Coffin Fissure - Putrescent Knight (at the back of Putrescent Knight's arena)", "sourceDetails": "outside of Gideon's arena at the base of a shortcut ladder, accessed from an open window on a second-floor rooftop", "targetDetails": "at the back of Putrescent Knight's arena", "requiredItemFrom": null}, {"source": "Stone Coffin Fissure - Before Boss", "target": "Stone Coffin Fissure - Putrescent Knight", "type": "preexisting", "description": "Stone Coffin Fissure - Before Boss --> Stone Coffin Fissure - Putrescent Knight (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Behind Erdtree Sanctuary", "target": "Altus Plateau - Sainted Hero's Grave - Ancient Hero of Zamor", "type": "random", "description": "Ashen Leyndell - Behind Erdtree Sanctuary (outside of Gideon's arena at the leftmost back exit, the one without the branch) --> Altus Plateau - Sainted Hero's Grave - Ancient Hero of Zamor (at the front of Ancient Hero of Zamor's arena)", "sourceDetails": "outside of Gideon's arena at the leftmost back exit, the one without the branch", "targetDetails": "at the front of Ancient Hero of Zamor's arena", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Behind Erdtree Sanctuary", "target": "Regal Ancestor Spirit", "type": "random", "description": "Ashen Leyndell - Behind Erdtree Sanctuary (outside of Gideon's arena at the rightmost back exit, the one with the branch) --> Regal Ancestor Spirit (return to entrance after Regal Ancestor Spirit)", "sourceDetails": "outside of Gideon's arena at the rightmost back exit, the one with the branch", "targetDetails": "return to entrance after Regal Ancestor Spirit", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Behind Erdtree Sanctuary", "target": "Mohg, the Omen", "type": "random", "description": "Ashen Leyndell - Behind Erdtree Sanctuary (outside of Gideon's arena at the center back exit) --> Mohg, the Omen (at the front of Mohg's arena)", "sourceDetails": "outside of Gideon's arena at the center back exit", "targetDetails": "at the front of Mohg's arena", "requiredItemFrom": null}, {"source": "Nokron from Limgrave", "target": "Nokron before Mimic Tear", "type": "preexisting", "description": "Nokron from Limgrave --> Nokron before Mimic Tear (dropping down to the first Nokron grace)", "sourceDetails": "", "targetDetails": "dropping down to the first Nokron grace", "requiredItemFrom": null}, {"source": "Ashen Leyndell", "target": "Ashen Leyndell - South of Erdtree Sanctuary", "type": "preexisting", "description": "Ashen Leyndell --> Ashen Leyndell - South of Erdtree Sanctuary (dropping down to the right of the sanctuary entrance from the elevator)", "sourceDetails": "", "targetDetails": "dropping down to the right of the sanctuary entrance from the elevator", "requiredItemFrom": null}, {"source": "Ashen Leyndell", "target": "Subterranean Shunning-Grounds - Ashen Capital Dropdown", "type": "preexisting", "description": "Ashen Leyndell --> Subterranean Shunning-Grounds - Ashen Capital Dropdown (dropping down through the open sewer grate)", "sourceDetails": "", "targetDetails": "dropping down through the open sewer grate", "requiredItemFrom": null}, {"source": "Ashen Leyndell", "target": "Mohg, Lord of Blood", "type": "random", "description": "Ashen Leyndell (at the front entrance to Gideon's arena) --> Mohg, Lord of Blood (at the front of Mohg's arena)", "sourceDetails": "at the front entrance to Gideon's arena", "targetDetails": "at the front of Mohg's arena", "requiredItemFrom": null}, {"source": "Ashen Leyndell", "target": "Deeproot Depths", "type": "random", "description": "Ashen Leyndell (at the Ashen Capital entrance from Capital Rampart) --> Deeproot Depths (before the Deeproot Depths boss arena)", "sourceDetails": "at the Ashen Capital entrance from Capital Rampart", "targetDetails": "before the Deeproot Depths boss arena", "requiredItemFrom": null}, {"source": "Deeproot Depths from Proscription", "target": "Deeproot Depths", "type": "preexisting", "description": "Deeproot Depths from Proscription --> Deeproot Depths (traversing down the roots)", "sourceDetails": "", "targetDetails": "traversing down the roots", "requiredItemFrom": null}, {"source": "Siofra River", "target": "Deeproot Depths", "type": "random", "description": "Siofra River (using Horned Remains in Siofra) --> Deeproot Depths (arriving by the Great Waterfall Crest grace)", "sourceDetails": "using Horned Remains in Siofra", "targetDetails": "arriving by the Great Waterfall Crest grace", "requiredItemFrom": null}, {"source": "Altus Plateau - Sainted Hero's Grave - Ancient Hero of Zamor", "target": "Stone Coffin Fissure", "type": "random", "description": "Altus Plateau - Sainted Hero's Grave - Ancient Hero of Zamor (return to entrance after Ancient Hero of Zamor) --> Stone Coffin Fissure (at the entrance from Cerulean Coast)", "sourceDetails": "return to entrance after Ancient Hero of Zamor", "targetDetails": "at the entrance from Cerulean Coast", "requiredItemFrom": null}, {"source": "Ashen Leyndell - South of Erdtree Sanctuary", "target": "Midra's Manse", "type": "random", "description": "Ashen Leyndell - South of Erdtree Sanctuary (at the side entrance to Gideon's arena from the branches) --> Midra's Manse (at the entrance to Midra's Manse)", "sourceDetails": "at the side entrance to Gideon's arena from the branches", "targetDetails": "at the entrance to Midra's Manse", "requiredItemFrom": null}, {"source": "Subterranean Shunning-Grounds - Ashen Capital Dropdown", "target": "Subterranean Shunning-Grounds", "type": "preexisting", "description": "Subterranean Shunning-Grounds - Ashen Capital Dropdown --> Subterranean Shunning-Grounds (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Mohg, Lord of Blood", "target": "Subterranean Shunning-Grounds", "type": "random", "description": "Mohg, Lord of Blood (at the back right of Mohg's arena) --> Subterranean Shunning-Grounds (before Mohg's arena)", "sourceDetails": "at the back right of Mohg's arena", "targetDetails": "before Mohg's arena", "requiredItemFrom": null}, {"source": "Subterranean Shunning-Grounds - From Royal Capital", "target": "Subterranean Shunning-Grounds", "type": "preexisting", "description": "Subterranean Shunning-Grounds - From Royal Capital --> Subterranean Shunning-Grounds (opening the one-way door)", "sourceDetails": "", "targetDetails": "opening the one-way door", "requiredItemFrom": null}, {"source": "Nokron before Mimic Tear", "target": "Volcano Manor Prison Town Church", "type": "random", "description": "Nokron before Mimic Tear (before Mimic Tear's arena) --> Volcano Manor Prison Town Church (behind the altar coming from the manor)", "sourceDetails": "before Mimic Tear's arena", "targetDetails": "behind the altar coming from the manor", "requiredItemFrom": null}, {"source": "Deeproot Depths", "target": "Leyndell - Divine Bridge", "type": "random", "description": "Deeproot Depths (resting in the coffin by the Nameless Eternal City grace) --> Leyndell - Divine Bridge (arriving from the Tower of Return)", "sourceDetails": "resting in the coffin by the Nameless Eternal City grace", "targetDetails": "arriving from the Tower of Return", "requiredItemFrom": null}, {"source": "Leyndell", "target": "Leyndell - Divine Bridge (taking the elevator from Fortified Manor)", "type": "preexisting", "description": "Leyndell --> Leyndell - Divine Bridge (taking the elevator from Fortified Manor)", "sourceDetails": "", "targetDetails": "", "requiredItemFrom": null}, {"source": "Volcano Manor Prison Town Church", "target": "Volcano Manor Prison Town", "type": "preexisting", "description": "Volcano Manor Prison Town Church --> Volcano Manor Prison Town (opening the door)", "sourceDetails": "", "targetDetails": "opening the door", "requiredItemFrom": null}, {"source": "Volcano Manor - Hallway Opposite Sending Gate", "target": "Volcano Manor Prison Town", "type": "preexisting", "description": "Volcano Manor - Hallway Opposite Sending Gate --> Volcano Manor Prison Town (using a Stonesword Key and dropping down)", "sourceDetails": "", "targetDetails": "using a Stonesword Key and dropping down", "requiredItemFrom": null}, {"source": "Chapel of Anticipation", "target": "Volcano Manor Prison Town", "type": "random", "description": "Chapel of Anticipation (using the Pureblood Knight's Medal from anywhere) --> Volcano Manor Prison Town (arriving in Volcano Manor after abduction. get to the main town by hopping across two lava streams then jumping off the southewst edge into the lava below), using an item from Haligtree Town", "sourceDetails": "using the Pureblood Knight's Medal from anywhere", "targetDetails": "arriving in Volcano Manor after abduction. get to the main town by hopping across two lava streams then jumping off the southewst edge into the lava below", "requiredItemFrom": "Haligtree Town"}, {"source": "Stone Coffin Fissure", "target": "Stone Coffin Fissure - After Waypoint", "type": "preexisting", "description": "Stone Coffin Fissure --> Stone Coffin Fissure - After Waypoint (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Stone Coffin Fissure - Before Boss", "target": "Stone Coffin Fissure - After Waypoint", "type": "preexisting", "description": "Stone Coffin Fissure - Before Boss --> Stone Coffin Fissure - After Waypoint (going back before the fog gate)", "sourceDetails": "", "targetDetails": "going back before the fog gate", "requiredItemFrom": null}, {"source": "Midra's Manse", "target": "Mimic Tear", "type": "random", "description": "Midra's Manse (before Midra's arena) --> Mimic Tear (at the front of Mimic Tear's arena)", "sourceDetails": "before Midra's arena", "targetDetails": "at the front of Mimic Tear's arena", "requiredItemFrom": null}, {"source": "Red Wolf of Radagon", "target": "Ruin-Strewn Precipice", "type": "random", "description": "Red Wolf of Radagon (at the front of Red Wolf's arena) --> Ruin-Strewn Precipice (at the entrance from Liurnia)", "sourceDetails": "at the front of Red Wolf's arena", "targetDetails": "at the entrance from Liurnia", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Ruin-Strewn Precipice", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the Southeast exit with treasure behind it) --> Ruin-Strewn Precipice (before Magma Worm Makar's arena)", "sourceDetails": "in Gideon's arena at the Southeast exit with treasure behind it", "targetDetails": "before Magma Worm Makar's arena", "requiredItemFrom": null}, {"source": "Ancient Ruins of Rauh - West", "target": "Ancient Ruins of Rauh - Belfry Area", "type": "preexisting", "description": "Ancient Ruins of Rauh - West --> Ancient Ruins of Rauh - Belfry Area (in map)", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria", "target": "Ancient Ruins of Rauh - Belfry Area", "type": "random", "description": "Academy of Raya Lucaria (getting abducted at the bottom of the elevator. this requires dying in the bottom 30 meters, not above that) --> Ancient Ruins of Rauh - Belfry Area (arriving in the isolated section of Rauh Ruins)", "sourceDetails": "getting abducted at the bottom of the elevator. this requires dying in the bottom 30 meters, not above that", "targetDetails": "arriving in the isolated section of Rauh Ruins", "requiredItemFrom": null}, {"source": "Ancient Ruins of Rauh - West", "target": "Ancient Ruins of Rauh - Central Stairs", "type": "preexisting", "description": "Ancient Ruins of Rauh - West --> Ancient Ruins of Rauh - Central Stairs (using the sealed spiritspring)", "sourceDetails": "", "targetDetails": "using the sealed spiritspring", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Redmane Castle Boss", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (at the front of Gideon's arena) --> Redmane Castle Boss (at the front of Redmane Castle Plaza)", "sourceDetails": "at the front of Gideon's arena", "targetDetails": "at the front of Redmane Castle Plaza", "requiredItemFrom": null}, {"source": "After Redmane Castle Boss", "target": "Redmane Castle Boss", "type": "preexisting", "description": "After Redmane Castle Boss --> Redmane Castle Boss (dropping down past Jerren's platform)", "sourceDetails": "", "targetDetails": "dropping down past Jerren's platform", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Valiant Gargoyles", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the South entrance by the branches) --> Valiant Gargoyles (at the main entrance of Valiant Gargoyles' arena)", "sourceDetails": "in Gideon's arena at the South entrance by the branches", "targetDetails": "at the main entrance of Valiant Gargoyles' arena", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Academy of Raya Lucaria Main Entrance", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the rightmost East exit, the one without the branch) --> Academy of Raya Lucaria Main Entrance (arriving at Raya Lucaria Main Academy Gate from the East)", "sourceDetails": "in Gideon's arena at the rightmost East exit, the one without the branch", "targetDetails": "arriving at Raya Lucaria Main Academy Gate from the East", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria", "target": "Academy of Raya Lucaria Main Entrance", "type": "preexisting", "description": "Academy of Raya Lucaria --> Academy of Raya Lucaria Main Entrance (going backwards through Church of Cuckoo doors)", "sourceDetails": "", "targetDetails": "going backwards through Church of Cuckoo doors", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Farum Azula - Dragon Temple Balcony", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the leftmost East exit, the one with the branch) --> Farum Azula - Dragon Temple Balcony (on the balcony above Godskin Duo's arena)", "sourceDetails": "in Gideon's arena at the leftmost East exit, the one with the branch", "targetDetails": "on the balcony above Godskin Duo's arena", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the Southwest exit with a shortcut ladder behind it) --> Gravesite Plain - Dragon's Pit - Ancient Dragon-Man (at the front of Ancient Dragon-Man's arena)", "sourceDetails": "in Gideon's arena at the Southwest exit with a shortcut ladder behind it", "targetDetails": "at the front of Ancient Dragon-Man's arena", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Erdtree Sanctuary", "target": "Castle Sol", "type": "random", "description": "Ashen Leyndell - Erdtree Sanctuary (in Gideon's arena at the center East exit) --> Castle Sol (before Commander Niall's arena)", "sourceDetails": "in Gideon's arena at the center East exit", "targetDetails": "before Commander Niall's arena", "requiredItemFrom": null}, {"source": "Regal Ancestor Spirit", "target": "Royal Knight Loretta", "type": "random", "description": "Regal Ancestor Spirit (at the front of Regal Ancestor Spirit's arena) --> Royal Knight Loretta (at the front of Loretta's arena)", "sourceDetails": "at the front of Regal Ancestor Spirit's arena", "targetDetails": "at the front of Loretta's arena", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple Balcony", "target": "Godskin Duo", "type": "preexisting", "description": "Farum Azula - Dragon Temple Balcony --> Godskin Duo (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Redmane Castle Boss", "target": "Godskin Duo", "type": "random", "description": "Redmane Castle Boss (at the back of Redmane Castle Plaza) --> Godskin Duo (at the front right of Godskin Duo's arena)", "sourceDetails": "at the back of Redmane Castle Plaza", "targetDetails": "at the front right of Godskin Duo's arena", "requiredItemFrom": null}, {"source": "Volcano Manor Prison Town", "target": "Mt. Gelmir - Gelmir Hero's Grave", "type": "random", "description": "Volcano Manor Prison Town (before Abductor Virgins' arena. it can be reached from main town dropping down outside Temple of Eiglay) --> Mt. Gelmir - Gelmir Hero's Grave (at the entrance from Mt. Gelmir)", "sourceDetails": "before Abductor Virgins' arena. it can be reached from main town dropping down outside Temple of Eiglay", "targetDetails": "at the entrance from Mt. Gelmir", "requiredItemFrom": null}, {"source": "Volcano Manor Prison Town", "target": "Gravesite Plain - Belurat Gaol", "type": "random", "description": "Volcano Manor Prison Town (before Godskin Noble's arena) --> Gravesite Plain - Belurat Gaol (at the entrance from Gravesite Plain)", "sourceDetails": "before Godskin Noble's arena", "targetDetails": "at the entrance from Gravesite Plain", "requiredItemFrom": null}, {"source": "Stone Coffin Fissure - After Waypoint", "target": "Volcano Manor - Audience Pathway", "type": "random", "description": "Stone Coffin Fissure - After Waypoint (before the boss at Fissure Depths) --> Volcano Manor - Audience Pathway (before Rykard's arena)", "sourceDetails": "before the boss at Fissure Depths", "targetDetails": "before Rykard's arena", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria after Red Wolf", "target": "Volcano Manor - Audience Pathway", "type": "random", "description": "Academy of Raya Lucaria after Red Wolf (using the sending gate before the elevator to Grand Library) --> Volcano Manor - Audience Pathway (arriving at Audience Pathway)", "sourceDetails": "using the sending gate before the elevator to Grand Library", "targetDetails": "arriving at Audience Pathway", "requiredItemFrom": null}, {"source": "Mohg, Lord of Blood", "target": "Volcano Manor - Hallway Opposite Sending Gate", "type": "random", "description": "Mohg, Lord of Blood (at the back left of Mohg's arena) --> Volcano Manor - Hallway Opposite Sending Gate (in the hallway towards the Imp Seal back to main Volcano Manor)", "sourceDetails": "at the back left of Mohg's arena", "targetDetails": "in the hallway towards the Imp Seal back to main Volcano Manor", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria Main Entrance", "target": "Academy of Raya Lucaria", "type": "preexisting", "description": "Academy of Raya Lucaria Main Entrance --> Academy of Raya Lucaria (opening the doors to the Church of Cuckoo)", "sourceDetails": "", "targetDetails": "opening the doors to the Church of Cuckoo", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria Rooftops", "target": "Academy of Raya Lucaria", "type": "preexisting", "description": "Academy of Raya Lucaria Rooftops --> Academy of Raya Lucaria (completing the loop back to the Church of Cuckoo)", "sourceDetails": "", "targetDetails": "completing the loop back to the Church of Cuckoo", "requiredItemFrom": null}, {"source": "Castle Sol", "target": "Scadu Altus - Manus Metyr", "type": "random", "description": "Castle Sol (using the new sending gate at the Castle Sol entrance) --> Scadu Altus - Manus Metyr (at the side entrance, the left South gate)", "sourceDetails": "using the new sending gate at the Castle Sol entrance", "targetDetails": "at the side entrance, the left South gate", "requiredItemFrom": null}, {"source": "Volcano Manor - Hallway Opposite Sending Gate", "target": "Volcano Manor Entrance", "type": "preexisting", "description": "Volcano Manor - Hallway Opposite Sending Gate --> Volcano Manor Entrance (using a Stonesword Key, dropping down, and opening a door)", "sourceDetails": "", "targetDetails": "using a Stonesword Key, dropping down, and opening a door", "requiredItemFrom": null}, {"source": "Before Volcano Manor Entrance", "target": "Volcano Manor Entrance", "type": "preexisting", "description": "Before Volcano Manor Entrance --> Volcano Manor Entrance (opening the first door into Volcano Manor)", "sourceDetails": "", "targetDetails": "opening the first door into Volcano Manor", "requiredItemFrom": null}, {"source": "Mt. Gelmir - Gelmir Hero's Grave", "target": "Leyndell - Erdtree Entrance", "type": "random", "description": "Mt. Gelmir - Gelmir Hero's Grave (before Red Wolf of the Champion's arena) --> Leyndell - Erdtree Entrance (the path up to the Erdtree)", "sourceDetails": "before Red Wolf of the Champion's arena", "targetDetails": "the path up to the Erdtree", "requiredItemFrom": null}, {"source": "Gravesite Plain - Belurat Gaol", "target": "After Dragonkin Soldier of Nokstella", "type": "random", "description": "Gravesite Plain - Belurat Gaol (before Demi-Human Swordmaster Onze's arena) --> After Dragonkin Soldier of Nokstella (after Dragonkin of Nokstella)", "sourceDetails": "before Demi-Human Swordmaster Onze's arena", "targetDetails": "after Dragonkin of Nokstella", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria", "target": "Subterranean Shunning-Grounds - From Royal Capital", "type": "random", "description": "Academy of Raya Lucaria (before Red Wolf's arena) --> Subterranean Shunning-Grounds - From Royal Capital (at the entrance from Leyndell, Royal Capital)", "sourceDetails": "before Red Wolf's arena", "targetDetails": "at the entrance from Leyndell, Royal Capital", "requiredItemFrom": null}, {"source": "Subterranean Shunning-Grounds", "target": "Subterranean Shunning-Grounds - From Royal Capital (backwards through the door from Royal Capital)", "type": "preexisting", "description": "Subterranean Shunning-Grounds --> Subterranean Shunning-Grounds - From Royal Capital (backwards through the door from Royal Capital)", "sourceDetails": "", "targetDetails": "", "requiredItemFrom": null}, {"source": "Scadu Altus - Manus Metyr", "target": "Charo's Hidden Grave - Lamenter's Gaol", "type": "random", "description": "Scadu Altus - Manus Metyr (at the side entrance, the right North gate) --> Charo's Hidden Grave - Lamenter's Gaol (at the entrance from Charo's Hidden Grave)", "sourceDetails": "at the side entrance, the right North gate", "targetDetails": "at the entrance from Charo's Hidden Grave", "requiredItemFrom": null}, {"source": "Scadu Altus - Manus Metyr", "target": "Cave of Knowledge - Soldier of Godrick", "type": "random", "description": "Scadu Altus - Manus Metyr (at the main entrance gate) --> Cave of Knowledge - Soldier of Godrick (at the back of Soldier of Godrick's arena)", "sourceDetails": "at the main entrance gate", "targetDetails": "at the back of Soldier of Godrick's arena", "requiredItemFrom": null}, {"source": "Mimic Tear", "target": "Shaded Castle - Elemer of the Briar", "type": "random", "description": "Mimic Tear (at the side exit of Mimic Tear's arena) --> Shaded Castle - Elemer of the Briar (at the front of Elemer of the Briar's arena)", "sourceDetails": "at the side exit of Mimic Tear's arena", "targetDetails": "at the front of Elemer of the Briar's arena", "requiredItemFrom": null}, {"source": "Valiant Gargoyles", "target": "Leyndell", "type": "random", "description": "Valiant Gargoyles (resting in the coffin after defeating the boss) --> Leyndell (arriving at the start of Leyndell from Deeproot)", "sourceDetails": "resting in the coffin after defeating the boss", "targetDetails": "arriving at the start of Leyndell from Deeproot", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary Stairs", "target": "Leyndell", "type": "preexisting", "description": "Leyndell - Erdtree Sanctuary Stairs --> Leyndell (dropping down, like near Bolt of Gransax)", "sourceDetails": "", "targetDetails": "dropping down, like near Bolt of Gransax", "requiredItemFrom": null}, {"source": "Valiant Gargoyles", "target": "Deeproot Depths - Fia's Champions", "type": "random", "description": "Valiant Gargoyles (at the side entrance to Valiant Gargoyles' arena, next to the main entrance) --> Deeproot Depths - Fia's Champions (at the front of the Deeproot Depths boss arena)", "sourceDetails": "at the side entrance to Valiant Gargoyles' arena, next to the main entrance", "targetDetails": "at the front of the Deeproot Depths boss arena", "requiredItemFrom": null}, {"source": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man", "target": "Gravesite Plain - Dragon's Pit - After Boss", "type": "preexisting", "description": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man --> Gravesite Plain - Dragon's Pit - After Boss (opening the door)", "sourceDetails": "", "targetDetails": "opening the door", "requiredItemFrom": null}, {"source": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man", "target": "Elphael, Brace of the Haligtree", "type": "random", "description": "Gravesite Plain - Dragon's Pit - Ancient Dragon-Man (return to entrance after Ancient Dragon-Man) --> Elphael, Brace of the Haligtree (before Malenia's arena)", "sourceDetails": "return to entrance after Ancient Dragon-Man", "targetDetails": "before Malenia's arena", "requiredItemFrom": null}, {"source": "Royal Knight Loretta", "target": "After Commander Niall", "type": "random", "description": "Royal Knight Loretta (at the back of Loretta's arena) --> After Commander Niall (after Commander Niall's arena)", "sourceDetails": "at the back of Loretta's arena", "targetDetails": "after Commander Niall's arena", "requiredItemFrom": null}, {"source": "Godskin Duo", "target": "Scadu Altus - Bonny Gaol - Curseblade Labirith", "type": "random", "description": "Godskin Duo (at the back right of Godskin Duo's arena) --> Scadu Altus - Bonny Gaol - Curseblade Labirith (return to entrance after Curseblade Labirith)", "sourceDetails": "at the back right of Godskin Duo's arena", "targetDetails": "return to entrance after Curseblade Labirith", "requiredItemFrom": null}, {"source": "Godskin Duo", "target": "Fire Giant", "type": "random", "description": "Godskin Duo (at the front left of Godskin Duo's arena) --> Fire Giant (in the right front of Fire Giant's arena, farther from the forge)", "sourceDetails": "at the front left of Godskin Duo's arena", "targetDetails": "in the right front of Fire Giant's arena, farther from the forge", "requiredItemFrom": null}, {"source": "Godskin Duo", "target": "Ainsel River Main", "type": "random", "description": "Godskin Duo (at the back left of Godskin Duo's arena) --> Ainsel River Main (in the tunnel leading to Ainsel River Downstream)", "sourceDetails": "at the back left of Godskin Duo's arena", "targetDetails": "in the tunnel leading to Ainsel River Downstream", "requiredItemFrom": null}, {"source": "Lake of Rot", "target": "Ainsel River Main", "type": "preexisting", "description": "Lake of Rot --> Ainsel River Main (in map)", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": null}, {"source": "Lake of Rot", "target": "Ainsel River Main", "type": "random", "description": "Lake of Rot (resting in the coffin at the bottom of the Grand Cloister) --> Ainsel River Main (arriving at the start of Ainsel River Main)", "sourceDetails": "resting in the coffin at the bottom of the Grand Cloister", "targetDetails": "arriving at the start of Ainsel River Main", "requiredItemFrom": null}, {"source": "Gravesite Plain - Dragon's Pit - After Boss", "target": "Redmane Castle", "type": "random", "description": "Gravesite Plain - Dragon's Pit - After Boss (at the exit to Jagged Peak) --> Redmane Castle (before Redmane Castle Plaza)", "sourceDetails": "at the exit to Jagged Peak", "targetDetails": "before Redmane Castle Plaza", "requiredItemFrom": null}, {"source": "Redmane Castle", "target": "Redmane Castle", "type": "random", "description": "Redmane Castle (using the new sending gate on the cliffside path before Redmane Castle) --> Redmane Castle (arriving at the cliffside path to Redmane Castle)", "sourceDetails": "using the new sending gate on the cliffside path before Redmane Castle", "targetDetails": "arriving at the cliffside path to Redmane Castle", "requiredItemFrom": null}, {"source": "Charo's Hidden Grave - Lamenter's Gaol", "target": "Charo's Hidden Grave - Lower Lamenter's Gaol", "type": "preexisting", "description": "Charo's Hidden Grave - Lamenter's Gaol --> Charo's Hidden Grave - Lower Lamenter's Gaol (in map), using an item from Charo's Hidden Grave - Lamenter's Gaol", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": "Charo's Hidden Grave - Lamenter's Gaol"}, {"source": "Cave of Knowledge - Soldier of Godrick", "target": "Academy of Raya Lucaria - Grand Library", "type": "random", "description": "Cave of Knowledge - Soldier of Godrick (at the front of Soldier of Godrick's arena) --> Academy of Raya Lucaria - Grand Library (at the front of Rennala's arena)", "sourceDetails": "at the front of Soldier of Godrick's arena", "targetDetails": "at the front of Rennala's arena", "requiredItemFrom": null}, {"source": "Leyndell", "target": "Leyndell - before Divine Tower", "type": "preexisting", "description": "Leyndell --> Leyndell - before Divine Tower (opening the heavy door below East Capital Rampart)", "sourceDetails": "", "targetDetails": "opening the heavy door below East Capital Rampart", "requiredItemFrom": null}, {"source": "Leyndell", "target": "Astel, Naturalborn of the Void", "type": "random", "description": "Leyndell (before Godfrey's arena from the branches) --> Astel, Naturalborn of the Void (at the front of Astel's arena)", "sourceDetails": "before Godfrey's arena from the branches", "targetDetails": "at the front of Astel's arena", "requiredItemFrom": null}, {"source": "Leyndell", "target": "Shadow Keep - Golden Hippopotamus", "type": "random", "description": "Leyndell (at the Leyndell entrance from Capital Rampart) --> Shadow Keep - Golden Hippopotamus (at the right side of Golden Hippopotamus's arena)", "sourceDetails": "at the Leyndell entrance from Capital Rampart", "targetDetails": "at the right side of Golden Hippopotamus's arena", "requiredItemFrom": null}, {"source": "Leyndell", "target": "Specimen Storehouse", "type": "random", "description": "Leyndell (at the entrance to Subterranean Shunning-Grounds) --> Specimen Storehouse (at the entrance from Shadow Keep)", "sourceDetails": "at the entrance to Subterranean Shunning-Grounds", "targetDetails": "at the entrance from Shadow Keep", "requiredItemFrom": null}, {"source": "Specimen Storehouse - Back Section", "target": "Specimen Storehouse", "type": "preexisting", "description": "Specimen Storehouse - Back Section --> Specimen Storehouse (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Elphael, Brace of the Haligtree", "target": "After Loretta, Knight of the Haligtree", "type": "preexisting", "description": "Elphael, Brace of the Haligtree --> After Loretta, Knight of the Haligtree (at the start of Elphael)", "sourceDetails": "", "targetDetails": "at the start of Elphael", "requiredItemFrom": null}, {"source": "Scadu Altus - Bonny Gaol - Curseblade Labirith", "target": "Leyndell - Erdtree Sanctuary", "type": "random", "description": "Scadu Altus - Bonny Gaol - Curseblade Labirith (at the front of Curseblade Labirith's arena) --> Leyndell - Erdtree Sanctuary (in Godfrey's arena at the leftmost East exit, the one with the branch)", "sourceDetails": "at the front of Curseblade Labirith's arena", "targetDetails": "in Godfrey's arena at the leftmost East exit, the one with the branch", "requiredItemFrom": null}, {"source": "Leyndell - Queen's Bedchamber", "target": "Leyndell - Erdtree Sanctuary", "type": "preexisting", "description": "Leyndell - Queen's Bedchamber --> Leyndell - Erdtree Sanctuary (dropping into the boss fight)", "sourceDetails": "", "targetDetails": "dropping into the boss fight", "requiredItemFrom": null}, {"source": "Ainsel River Main", "target": "Lake of Rot", "type": "preexisting", "description": "Ainsel River Main --> Lake of Rot (in map)", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": null}, {"source": "After Loretta, Knight of the Haligtree", "target": "After Redmane Castle Boss", "type": "random", "description": "After Loretta, Knight of the Haligtree (after Loretta's arena) --> After Redmane Castle Boss (at the bottom of the elevator before the Radahn warp)", "sourceDetails": "after Loretta's arena", "targetDetails": "at the bottom of the elevator before the Radahn warp", "requiredItemFrom": null}, {"source": "Charo's Hidden Grave - Lower Lamenter's Gaol", "target": "Charo's Hidden Grave - Lamenter's Gaol Before Boss", "type": "preexisting", "description": "Charo's Hidden Grave - Lower Lamenter's Gaol --> Charo's Hidden Grave - Lamenter's Gaol Before Boss (in map), using an item from Charo's Hidden Grave - Lower Lamenter's Gaol", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": "Charo's Hidden Grave - Lower Lamenter's Gaol"}, {"source": "After Redmane Castle Boss", "target": "Capital Outskirts - Auriza Hero's Grave - Crucible Knight Ordovis", "type": "random", "description": "After Redmane Castle Boss (after Redmane Castle Plaza) --> Capital Outskirts - Auriza Hero's Grave - Crucible Knight Ordovis (at the front of Crucible Knight Ordovis' arena)", "sourceDetails": "after Redmane Castle Plaza", "targetDetails": "at the front of Crucible Knight Ordovis' arena", "requiredItemFrom": null}, {"source": "Charo's Hidden Grave - Lamenter's Gaol Before Boss", "target": "Castle Ensis - Rellana, Twin Moon Knight", "type": "random", "description": "Charo's Hidden Grave - Lamenter's Gaol Before Boss (before Lamenter's arena) --> Castle Ensis - Rellana, Twin Moon Knight (at the back of Rellana's arena)", "sourceDetails": "before Lamenter's arena", "targetDetails": "at the back of Rellana's arena", "requiredItemFrom": null}, {"source": "Leyndell - before Divine Tower", "target": "Jagged Peak - Bayle", "type": "random", "description": "Leyndell - before Divine Tower (at the base of the elevator to the Divine Tower of East Altus) --> Jagged Peak - Bayle (at the front of Bayle's arena)", "sourceDetails": "at the base of the elevator to the Divine Tower of East Altus", "targetDetails": "at the front of Bayle's arena", "requiredItemFrom": null}, {"source": "Specimen Storehouse", "target": "Specimen Storehouse - Before Messmer", "type": "preexisting", "description": "Specimen Storehouse --> Specimen Storehouse - Before Messmer (opening the door)", "sourceDetails": "", "targetDetails": "opening the door", "requiredItemFrom": null}, {"source": "Specimen Storehouse", "target": "Belurat", "type": "random", "description": "Specimen Storehouse (at the top of the elevator to Specimen Storehouse) --> Belurat (at the entrance from Gravesite Plain)", "sourceDetails": "at the top of the elevator to Specimen Storehouse", "targetDetails": "at the entrance from Gravesite Plain", "requiredItemFrom": null}, {"source": "Belurat Swamp", "target": "Belurat", "type": "preexisting", "description": "Belurat Swamp --> Belurat (opening the shortcut door)", "sourceDetails": "", "targetDetails": "opening the shortcut door", "requiredItemFrom": null}, {"source": "Specimen Storehouse - Before Messmer", "target": "Gravesite Plain - Ruined Forge Lava Intake", "type": "random", "description": "Specimen Storehouse - Before Messmer (before Messmer's arena) --> Gravesite Plain - Ruined Forge Lava Intake (return to entrance after completing Ruined Forge Lava Intake)", "sourceDetails": "before Messmer's arena", "targetDetails": "return to entrance after completing Ruined Forge Lava Intake", "requiredItemFrom": null}, {"source": "Capital Outskirts - Auriza Hero's Grave - Crucible Knight Ordovis", "target": "Loretta, Knight of the Haligtree", "type": "random", "description": "Capital Outskirts - Auriza Hero's Grave - Crucible Knight Ordovis (return to entrance after Crucible Knight Ordovis) --> Loretta, Knight of the Haligtree (at back of Loretta's arena)", "sourceDetails": "return to entrance after Crucible Knight Ordovis", "targetDetails": "at back of Loretta's arena", "requiredItemFrom": null}, {"source": "Fire Giant", "target": "Finger Birthing Grounds - Metyr, Mother of Fingers", "type": "random", "description": "Fire Giant (burning the erdtree at the Forge of the Giants, or repeating the warp using the grace) --> Finger Birthing Grounds - Metyr, Mother of Fingers (arriving at Finger Birthing Grounds)", "sourceDetails": "burning the erdtree at the Forge of the Giants, or repeating the warp using the grace", "targetDetails": "arriving at Finger Birthing Grounds", "requiredItemFrom": null}, {"source": "Fire Giant", "target": "Divine Tower of East Altus", "type": "random", "description": "Fire Giant (in the left front of Fire Giant's arena, closer to the forge) --> Divine Tower of East Altus (at the exit to Forbidden Lands)", "sourceDetails": "in the left front of Fire Giant's arena, closer to the forge", "targetDetails": "at the exit to Forbidden Lands", "requiredItemFrom": null}, {"source": "Belurat", "target": "Belurat Swamp", "type": "preexisting", "description": "Belurat --> Belurat Swamp (in map), using an item from Belurat", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": "Belurat"}, {"source": "Enir-Ilim - Belurat", "target": "Belurat Swamp", "type": "preexisting", "description": "Enir-Ilim - Belurat --> Belurat Swamp (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Belurat", "target": "Belurat - After Divine Beast Dancing Lion", "type": "random", "description": "Belurat (before Divine Beast Dancing Lion's arena) --> Belurat - After Divine Beast Dancing Lion (after Divine Beast Dancing Lion's arena)", "sourceDetails": "before Divine Beast Dancing Lion's arena", "targetDetails": "after Divine Beast Dancing Lion's arena", "requiredItemFrom": null}, {"source": "Gravesite Plain - Ruined Forge Lava Intake", "target": "Specimen Storehouse - Messmer the Impaler", "type": "random", "description": "Gravesite Plain - Ruined Forge Lava Intake (at the entrance from Gravesite Plain) --> Specimen Storehouse - Messmer the Impaler (at the front of Messmer's arena)", "sourceDetails": "at the entrance from Gravesite Plain", "targetDetails": "at the front of Messmer's arena", "requiredItemFrom": null}, {"source": "Belurat - After Divine Beast Dancing Lion", "target": "Belurat - Stairs before Enir-Ilim", "type": "preexisting", "description": "Belurat - After Divine Beast Dancing Lion --> Belurat - Stairs before Enir-Ilim (opening the door)", "sourceDetails": "", "targetDetails": "opening the door", "requiredItemFrom": null}, {"source": "Enir-Ilim", "target": "Belurat - Stairs before Enir-Ilim", "type": "preexisting", "description": "Enir-Ilim --> Belurat - Stairs before Enir-Ilim (in map after burning the Sealing Tree), using items from Belurat; Specimen Storehouse - Messmer the Impaler; Scadutree Base - Scadutree Avatar; Ancient Ruins of Rauh - East; Ancient Ruins of Rauh - Romina, Saint of the Bud; Scaduview - Commander Gaius; Jagged Peak - Bayle; Finger Birthing Grounds - Metyr, Mother of Fingers; Scadu Altus - Bonny Gaol - Curseblade Labirith; Gravesite Plain - Ruined Forge Lava Intake; Scadu Altus - Ruined Forge of Starfall Past; Belurat Swamp; Rauh Base - Taylew's Ruined Forge; Castle Ensis; Belurat - Divine Beast Dancing Lion; Cerulean Coast - Dancer of Ranah; East Scadu Altus; Shadow Keep - Golden Hippopotamus", "sourceDetails": "", "targetDetails": "in map after burning the Sealing Tree", "requiredItemFrom": null}, {"source": "Astel, Naturalborn of the Void", "target": "Farum Azula Rooftop and Bridge", "type": "random", "description": "Astel, Naturalborn of the Void (at the back of Astel's arena) --> Farum Azula Rooftop and Bridge (before Maliketh's arena)", "sourceDetails": "at the back of Astel's arena", "targetDetails": "before Maliketh's arena", "requiredItemFrom": null}, {"source": "Shadow Keep - Golden Hippopotamus", "target": "Altus Plateau - Sainted Hero's Grave", "type": "random", "description": "Shadow Keep - Golden Hippopotamus (at the front of Golden Hippopotamus's arena) --> Altus Plateau - Sainted Hero's Grave (at the entrance from Altus Plateau)", "sourceDetails": "at the front of Golden Hippopotamus's arena", "targetDetails": "at the entrance from Altus Plateau", "requiredItemFrom": null}, {"source": "Shadow Keep - Golden Hippopotamus", "target": "Volcano Manor - Abductor Virgins", "type": "random", "description": "Shadow Keep - Golden Hippopotamus (at the left side of Golden Hippopotamus's arena) --> Volcano Manor - Abductor Virgins (at the front of Abductor Virgins' arena)", "sourceDetails": "at the left side of Golden Hippopotamus's arena", "targetDetails": "at the front of Abductor Virgins' arena", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Before Radahn", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the normal South entrance from the branches) --> Before Radahn (at the bottom of the elevator before the Radahn warp)", "sourceDetails": "in Godfrey's arena at the normal South entrance from the branches", "targetDetails": "at the bottom of the elevator before the Radahn warp", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Castle Ensis", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the West entrance to the Marika statue) --> Castle Ensis (before Rellana's arena)", "sourceDetails": "in Godfrey's arena at the West entrance to the Marika statue", "targetDetails": "before Rellana's arena", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Maliketh the Black Blade", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the rightmost East exit, the one without the branch) --> Maliketh the Black Blade (at the front of Maliketh's arena)", "sourceDetails": "in Godfrey's arena at the rightmost East exit, the one without the branch", "targetDetails": "at the front of Maliketh's arena", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Leyndell - Erdtree Sanctuary Stairs", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the Southwest exit with a shortcut ladder behind it) --> Leyndell - Erdtree Sanctuary Stairs (outside of Godfrey's arena at the stairs which go down to the Marika statue)", "sourceDetails": "in Godfrey's arena at the Southwest exit with a shortcut ladder behind it", "targetDetails": "outside of Godfrey's arena at the stairs which go down to the Marika statue", "requiredItemFrom": null}, {"source": "Leyndell - Queen's Bedchamber", "target": "Leyndell - Erdtree Sanctuary Stairs", "type": "preexisting", "description": "Leyndell - Queen's Bedchamber --> Leyndell - Erdtree Sanctuary Stairs (instead of entering the sanctuary, dropping down to the right)", "sourceDetails": "", "targetDetails": "instead of entering the sanctuary, dropping down to the right", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Malenia, Blade of Miquella", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the Southeast exit with treasure behind it) --> Malenia, Blade of Miquella (at the front of Malenia's arena)", "sourceDetails": "in Godfrey's arena at the Southeast exit with treasure behind it", "targetDetails": "at the front of Malenia's arena", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Sanctuary", "target": "Capital Outskirts - Auriza Hero's Grave", "type": "random", "description": "Leyndell - Erdtree Sanctuary (in Godfrey's arena at the center East exit) --> Capital Outskirts - Auriza Hero's Grave (at the entrance from Capital Outskirts)", "sourceDetails": "in Godfrey's arena at the center East exit", "targetDetails": "at the entrance from Capital Outskirts", "requiredItemFrom": null}, {"source": "Before Radahn", "target": "Before Regal Ancestor Spirit", "type": "random", "description": "Before Radahn (using the Sending Gate before Starscourge Radahn) --> Before Regal Ancestor Spirit (arriving in the area before Regal Ancestor Spirit's arena)", "sourceDetails": "using the Sending Gate before Starscourge Radahn", "targetDetails": "arriving in the area before Regal Ancestor Spirit's arena", "requiredItemFrom": null}, {"source": "Castle Ensis - Rellana, Twin Moon Knight", "target": "Leonine Misbegotten", "type": "random", "description": "Castle Ensis - Rellana, Twin Moon Knight (at the front of Rellana's arena) --> Leonine Misbegotten (at the front of Leonine Misbegotten's arena)", "sourceDetails": "at the front of Rellana's arena", "targetDetails": "at the front of Leonine Misbegotten's arena", "requiredItemFrom": null}, {"source": "Before Regal Ancestor Spirit", "target": "Deep Ainsel Well", "type": "random", "description": "Before Regal Ancestor Spirit (before Regal Ancestor Spirit's arena) --> Deep Ainsel Well (after Astel's arena)", "sourceDetails": "before Regal Ancestor Spirit's arena", "targetDetails": "after Astel's arena", "requiredItemFrom": null}, {"source": "Deep Ainsel Well", "target": "Magma Wrym Makar", "type": "random", "description": "Deep Ainsel Well (at the top of the Deep Ainsel Well) --> Magma Wrym Makar (at the front of Magma Wyrm Makar's arena), using an item from Leyndell - Erdtree Sanctuary Stairs", "sourceDetails": "at the top of the Deep Ainsel Well", "targetDetails": "at the front of Magma Wyrm Makar's arena", "requiredItemFrom": "Leyndell - Erdtree Sanctuary Stairs"}, {"source": "Farum Azula Rooftop and Bridge", "target": "Siofra River before Ancestor Spirit", "type": "random", "description": "Farum Azula Rooftop and Bridge (lying down in front of the tempest below the great bridge) --> Siofra River before Ancestor Spirit (arriving in the area before Ancestor Spirit's arena)", "sourceDetails": "lying down in front of the tempest below the great bridge", "targetDetails": "arriving in the area before Ancestor Spirit's arena", "requiredItemFrom": null}, {"source": "Farum Azula Rooftop and Bridge", "target": "Rauh Base - Taylew's Ruined Forge", "type": "random", "description": "Farum Azula Rooftop and Bridge (after Godskin Duo arena) --> Rauh Base - Taylew's Ruined Forge (at the entrance from Rauh Base)", "sourceDetails": "after Godskin Duo arena", "targetDetails": "at the entrance from Rauh Base", "requiredItemFrom": null}, {"source": "Farum Azula Rooftop and Bridge", "target": "Leyndell - Elden Throne", "type": "random", "description": "Farum Azula Rooftop and Bridge (at the Imp Seal leading up to the Dragon Temple Lift grace) --> Leyndell - Elden Throne (at the back of Morgott's arena)", "sourceDetails": "at the Imp Seal leading up to the Dragon Temple Lift grace", "targetDetails": "at the back of Morgott's arena", "requiredItemFrom": null}, {"source": "Altus Plateau - Sainted Hero's Grave", "target": "Before Volcano Manor Entrance", "type": "random", "description": "Altus Plateau - Sainted Hero's Grave (before Ancient Hero of Zamor's arena) --> Before Volcano Manor Entrance (at the doorway from Mt. Gelmir)", "sourceDetails": "before Ancient Hero of Zamor's arena", "targetDetails": "at the doorway from Mt. Gelmir", "requiredItemFrom": null}, {"source": "Volcano Manor - Abductor Virgins", "target": "Ancient Ruins of Rauh - East", "type": "random", "description": "Volcano Manor - Abductor Virgins (at the back of Abductor Virgins' arena) --> Ancient Ruins of Rauh - East (at the Viaduct Minor Tower after West Rampart)", "sourceDetails": "at the back of Abductor Virgins' arena", "targetDetails": "at the Viaduct Minor Tower after West Rampart", "requiredItemFrom": null}, {"source": "Castle Ensis", "target": "Leyndell - Behind Erdtree Sanctuary", "type": "random", "description": "Castle Ensis (on the bridge from Gravesite Plain) --> Leyndell - Behind Erdtree Sanctuary (outside of Godfrey's arena at the rightmost back exit, the one with the branch)", "sourceDetails": "on the bridge from Gravesite Plain", "targetDetails": "outside of Godfrey's arena at the rightmost back exit, the one with the branch", "requiredItemFrom": null}, {"source": "Leyndell - Queen's Bedchamber", "target": "Leyndell - Behind Erdtree Sanctuary", "type": "preexisting", "description": "Leyndell - Queen's Bedchamber --> Leyndell - Behind Erdtree Sanctuary (instead of entering the sanctuary, dropping down to the left)", "sourceDetails": "", "targetDetails": "instead of entering the sanctuary, dropping down to the left", "requiredItemFrom": null}, {"source": "Capital Outskirts - Auriza Hero's Grave", "target": "Flame Peak - Giant-Conquering Hero's Grave - Ancient Hero of Zamor", "type": "random", "description": "Capital Outskirts - Auriza Hero's Grave (before Crucible Knight Ordovis' arena) --> Flame Peak - Giant-Conquering Hero's Grave - Ancient Hero of Zamor (return to entrance after Ancient Hero of Zamor)", "sourceDetails": "before Crucible Knight Ordovis' arena", "targetDetails": "return to entrance after Ancient Hero of Zamor", "requiredItemFrom": null}, {"source": "Siofra River before Ancestor Spirit", "target": "Leyndell - Queen's Bedchamber", "type": "random", "description": "Siofra River before Ancestor Spirit (before Ancestor Spirit's arena) --> Leyndell - Queen's Bedchamber (before Morgott's arena)", "sourceDetails": "before Ancestor Spirit's arena", "targetDetails": "before Morgott's arena", "requiredItemFrom": null}, {"source": "Loretta, Knight of the Haligtree", "target": "Academy of Raya Lucaria after Red Wolf", "type": "random", "description": "Loretta, Knight of the Haligtree (at the front of Loretta's arena) --> Academy of Raya Lucaria after Red Wolf (before Rennala's arena)", "sourceDetails": "at the front of Loretta's arena", "targetDetails": "before Rennala's arena", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria Rooftops", "target": "Academy of Raya Lucaria after Red Wolf", "type": "preexisting", "description": "Academy of Raya Lucaria Rooftops --> Academy of Raya Lucaria after Red Wolf (dropping back down to the courtyard at the start of rooftops section)", "sourceDetails": "", "targetDetails": "dropping back down to the courtyard at the start of rooftops section", "requiredItemFrom": null}, {"source": "Leyndell - Behind Erdtree Sanctuary", "target": "Liurnia - Caria Manor", "type": "random", "description": "Leyndell - Behind Erdtree Sanctuary (outside of Godfrey's arena at the leftmost back exit, the one without the branch) --> Liurnia - Caria Manor (arriving at the entrance to Caria Manor)", "sourceDetails": "outside of Godfrey's arena at the leftmost back exit, the one without the branch", "targetDetails": "arriving at the entrance to Caria Manor", "requiredItemFrom": null}, {"source": "Liurnia Behind Caria Manor", "target": "Liurnia - Caria Manor", "type": "preexisting", "description": "Liurnia Behind Caria Manor --> Liurnia - Caria Manor (dropping down into the manor by Pidia)", "sourceDetails": "", "targetDetails": "dropping down into the manor by Pidia", "requiredItemFrom": null}, {"source": "Leyndell - Behind Erdtree Sanctuary", "target": "Shaded Castle", "type": "random", "description": "Leyndell - Behind Erdtree Sanctuary (outside of Godfrey's arena at the center back exit) --> Shaded Castle (before Elemer of the Briar's arena)", "sourceDetails": "outside of Godfrey's arena at the center back exit", "targetDetails": "before Elemer of the Briar's arena", "requiredItemFrom": null}, {"source": "Leyndell - Queen's Bedchamber", "target": "Farum Azula - Dragon Temple Lift", "type": "random", "description": "Leyndell - Queen's Bedchamber (outside of Godfrey's arena at the base of a shortcut ladder, accessed from an open window on a second-floor rooftop) --> Farum Azula - Dragon Temple Lift (down the elevator from Dragon Temple Lift grace)", "sourceDetails": "outside of Godfrey's arena at the base of a shortcut ladder, accessed from an open window on a second-floor rooftop", "targetDetails": "down the elevator from Dragon Temple Lift grace", "requiredItemFrom": null}, {"source": "Rauh Base - Taylew's Ruined Forge", "target": "Academy of Raya Lucaria Rooftops", "type": "random", "description": "Rauh Base - Taylew's Ruined Forge (return to entrance after completing Taylew's Ruined Forge) --> Academy of Raya Lucaria Rooftops (at the top of the steps before Raya Lucaria rooftops section)", "sourceDetails": "return to entrance after completing Taylew's Ruined Forge", "targetDetails": "at the top of the steps before Raya Lucaria rooftops section", "requiredItemFrom": null}, {"source": "Flame Peak - Giant-Conquering Hero's Grave - Ancient Hero of Zamor", "target": "Ancestor Spirit", "type": "random", "description": "Flame Peak - Giant-Conquering Hero's Grave - Ancient Hero of Zamor (at the front of Ancient Hero of Zamor's arena) --> Ancestor Spirit (return to entrance after Ancestor Spirit)", "sourceDetails": "at the front of Ancient Hero of Zamor's arena", "targetDetails": "return to entrance after Ancestor Spirit", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria after Red Wolf", "target": "Leyndell - Erdtree Sanctuary Treasure", "type": "random", "description": "Academy of Raya Lucaria after Red Wolf (after Red Wolf's arena) --> Leyndell - Erdtree Sanctuary Treasure (outside of Godfrey's arena with a treasure item)", "sourceDetails": "after Red Wolf's arena", "targetDetails": "outside of Godfrey's arena with a treasure item", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria after Red Wolf", "target": "Shadow Keep", "type": "random", "description": "Academy of Raya Lucaria after Red Wolf (on the steps to Raya Lucaria rooftops section) --> Shadow Keep (at the normal exit to the left of Golden Hippopotamus's arena)", "sourceDetails": "on the steps to Raya Lucaria rooftops section", "targetDetails": "at the normal exit to the left of Golden Hippopotamus's arena", "requiredItemFrom": null}, {"source": "Liurnia - Caria Manor", "target": "Weeping Peninsula - Beside the Rampart Gaol", "type": "random", "description": "Liurnia - Caria Manor (before Loretta's arena) --> Weeping Peninsula - Beside the Rampart Gaol (before Leonine Misbegotten's arena)", "sourceDetails": "before Loretta's arena", "targetDetails": "before Leonine Misbegotten's arena", "requiredItemFrom": null}, {"source": "Weeping Peninsula - Castle Morne", "target": "Weeping Peninsula - Beside the Rampart Gaol", "type": "preexisting", "description": "Weeping Peninsula - Castle Morne --> Weeping Peninsula - Beside the Rampart Gaol (dropping down behind Castle Morne)", "sourceDetails": "", "targetDetails": "dropping down behind Castle Morne", "requiredItemFrom": null}, {"source": "Shaded Castle", "target": "Ainsel River Downstream", "type": "random", "description": "Shaded Castle (using the new sending gate before the Shaded Castle swamp) --> Ainsel River Downstream (at the top of the Ainsel River Well)", "sourceDetails": "using the new sending gate before the Shaded Castle swamp", "targetDetails": "at the top of the Ainsel River Well", "requiredItemFrom": null}, {"source": "Above Ainsel River Downstream", "target": "Ainsel River Downstream", "type": "preexisting", "description": "Above Ainsel River Downstream --> Ainsel River Downstream (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Farum Azula - Dragon Temple Lift", "target": "Farum Azula - Crumbling Beast Grave Depths", "type": "preexisting", "description": "Farum Azula - Dragon Temple Lift --> Farum Azula - Crumbling Beast Grave Depths (completing the path atop floating debris)", "sourceDetails": "", "targetDetails": "completing the path atop floating debris", "requiredItemFrom": null}, {"source": "Farum Azula - Crumbling Beast Grave", "target": "Farum Azula - Crumbling Beast Grave Depths", "type": "preexisting", "description": "Farum Azula - Crumbling Beast Grave --> Farum Azula - Crumbling Beast Grave Depths (dropping down after Crumbling Beast Grave grace)", "sourceDetails": "", "targetDetails": "dropping down after Crumbling Beast Grave grace", "requiredItemFrom": null}, {"source": "Magma Wrym Makar", "target": "Hidden Path to the Haligtree", "type": "random", "description": "Magma Wrym Makar (at the back of Magma Wyrm Makar's arena) --> Hidden Path to the Haligtree (at exit to Consecrated Snowfield)", "sourceDetails": "at the back of Magma Wyrm Makar's arena", "targetDetails": "at exit to Consecrated Snowfield", "requiredItemFrom": null}, {"source": "Shadow Keep", "target": "Starscourge Radahn", "type": "random", "description": "Shadow Keep (using the coffin beneath Shadow Keep) --> Starscourge Radahn (arriving at Starscourge Radahn's arena)", "sourceDetails": "using the coffin beneath Shadow Keep", "targetDetails": "arriving at Starscourge Radahn's arena", "requiredItemFrom": null}, {"source": "Shadow Keep", "target": "Limgrave - Fringefolk Hero's Grave", "type": "random", "description": "Shadow Keep (at the shortcut door to the right of Golden Hippopotamus's arena) --> Limgrave - Fringefolk Hero's Grave (before Ulcerated Tree Spirit's arena)", "sourceDetails": "at the shortcut door to the right of Golden Hippopotamus's arena", "targetDetails": "before Ulcerated Tree Spirit's arena", "requiredItemFrom": null}, {"source": "Stranded Graveyard", "target": "Limgrave - Fringefolk Hero's Grave", "type": "preexisting", "description": "Stranded Graveyard --> Limgrave - Fringefolk Hero's Grave (using two Stonesword Keys)", "sourceDetails": "", "targetDetails": "using two Stonesword Keys", "requiredItemFrom": null}, {"source": "Shadow Keep", "target": "Belurat - Divine Beast Dancing Lion", "type": "random", "description": "Shadow Keep (at the top of the elevator to Specimen Storehouse) --> Belurat - Divine Beast Dancing Lion (at the front of Divine Beast Dancing Lion's arena)", "sourceDetails": "at the top of the elevator to Specimen Storehouse", "targetDetails": "at the front of Divine Beast Dancing Lion's arena", "requiredItemFrom": null}, {"source": "Ainsel River Downstream", "target": "Scadu Altus - Ruined Forge of Starfall Past", "type": "random", "description": "Ainsel River Downstream (before Dragonkin of Nokstella's arena) --> Scadu Altus - Ruined Forge of Starfall Past (return to entrance after completing Ruined Forge of Starfall Past)", "sourceDetails": "before Dragonkin of Nokstella's arena", "targetDetails": "return to entrance after completing Ruined Forge of Starfall Past", "requiredItemFrom": null}, {"source": "Leyndell - Elden Throne", "target": "Specimen Storehouse - Back Section", "type": "random", "description": "Leyndell - Elden Throne (at the front of Morgott's arena) --> Specimen Storehouse - Back Section (at the entrance from Shadow Keep Church District)", "sourceDetails": "at the front of Morgott's arena", "targetDetails": "at the entrance from Shadow Keep Church District", "requiredItemFrom": null}, {"source": "Deeproot Depths - Fia's Champions", "target": "Dragonlord Placidusax", "type": "random", "description": "Deeproot Depths - Fia's Champions (using the sending gate after Fia's Champions) --> Dragonlord Placidusax (arriving in Placidusax's arena), using items from Castle Sol; Stormveil Castle before Gate; Divine Tower of East Altus Start; Academy of Raya Lucaria - Grand Library Chest; Roundtable Hold; Volcano Manor Prison Town; Liurnia Behind Caria Manor", "sourceDetails": "using the sending gate after Fia's Champions", "targetDetails": "arriving in Placidusax's arena", "requiredItemFrom": null}, {"source": "Scadu Altus - Ruined Forge of Starfall Past", "target": "Gravesite Plain - Belurat Gaol - Demi-Human Swordmaster Onze", "type": "random", "description": "Scadu Altus - Ruined Forge of Starfall Past (at the entrance from Scadu Altus) --> Gravesite Plain - Belurat Gaol - Demi-Human Swordmaster Onze (at the front of Demi-Human Swordmaster Onze's arena)", "sourceDetails": "at the entrance from Scadu Altus", "targetDetails": "at the front of Demi-Human Swordmaster Onze's arena", "requiredItemFrom": null}, {"source": "Specimen Storehouse - Back Section", "target": "After Mohg, Lord of Blood", "type": "random", "description": "Specimen Storehouse - Back Section (before Gaius's arena) --> After Mohg, Lord of Blood (after Mohg's arena at the back right)", "sourceDetails": "before Gaius's arena", "targetDetails": "after Mohg's arena at the back right", "requiredItemFrom": null}, {"source": "Ancestor Spirit", "target": "Charo's Hidden Grave - Lamenter's Gaol - Lamenter", "type": "random", "description": "Ancestor Spirit (at the front of Ancestor Spirit's arena) --> Charo's Hidden Grave - Lamenter's Gaol - Lamenter (at the front of Lamenter's arena)", "sourceDetails": "at the front of Ancestor Spirit's arena", "targetDetails": "at the front of Lamenter's arena", "requiredItemFrom": null}, {"source": "After Mohg, Lord of Blood", "target": "Scadu Altus - Bonny Gaol", "type": "random", "description": "After Mohg, Lord of Blood (after Mohg's arena at the back left) --> Scadu Altus - Bonny Gaol (at the entrance from Scadu Altus)", "sourceDetails": "after Mohg's arena at the back left", "targetDetails": "at the entrance from Scadu Altus", "requiredItemFrom": null}, {"source": "Gravesite Plain - Belurat Gaol - Demi-Human Swordmaster Onze", "target": "Rykard, Lord of Blasphemy", "type": "random", "description": "Gravesite Plain - Belurat Gaol - Demi-Human Swordmaster Onze (return to entrance after Demi-Human Swordmaster Onze) --> Rykard, Lord of Blasphemy (at the front of Rykard's arena)", "sourceDetails": "return to entrance after Demi-Human Swordmaster Onze", "targetDetails": "at the front of Rykard's arena", "requiredItemFrom": null}, {"source": "Volcano Manor Entrance", "target": "Volcano Manor Drawing Room", "type": "preexisting", "description": "Volcano Manor Entrance --> Volcano Manor Drawing Room (using Drawing-Room Key), using an item from Farum Azula Rooftop and Bridge", "sourceDetails": "", "targetDetails": "using Drawing-Room Key", "requiredItemFrom": "Farum Azula Rooftop and Bridge"}, {"source": "Volcano Manor Drawing Room", "target": "Margit, the Fell Omen", "type": "random", "description": "Volcano Manor Drawing Room (at the end of the dark hallway leading to Prison Town) --> Margit, the Fell Omen (at the front of Margit's arena)", "sourceDetails": "at the end of the dark hallway leading to Prison Town", "targetDetails": "at the front of Margit's arena", "requiredItemFrom": null}, {"source": "Charo's Hidden Grave - Lamenter's Gaol - Lamenter", "target": "Above Ainsel River Downstream", "type": "random", "description": "Charo's Hidden Grave - Lamenter's Gaol - Lamenter (return to entrance after Lamenter) --> Above Ainsel River Downstream (after the tunnel from Ainsel River Main)", "sourceDetails": "return to entrance after Lamenter", "targetDetails": "after the tunnel from Ainsel River Main", "requiredItemFrom": null}, {"source": "Scadu Altus - Bonny Gaol", "target": "Nokron - Aqueduct-Facing Cliffs Room", "type": "random", "description": "Scadu Altus - Bonny Gaol (before Curseblade Labirith's arena) --> Nokron - Aqueduct-Facing Cliffs Room (after Valiant Gargoyles in the small room next to the main entrance)", "sourceDetails": "before Curseblade Labirith's arena", "targetDetails": "after Valiant Gargoyles in the small room next to the main entrance", "requiredItemFrom": null}, {"source": "Starscourge Radahn", "target": "Liurnia Behind Caria Manor", "type": "random", "description": "Starscourge Radahn (return to entrance after Starscourge Radahn) --> Liurnia Behind Caria Manor (after Loretta's arena)", "sourceDetails": "return to entrance after Starscourge Radahn", "targetDetails": "after Loretta's arena", "requiredItemFrom": null}, {"source": "Belurat - Divine Beast Dancing Lion", "target": "Scadu Altus - Darklight Catacombs - Jori, Elder Inquisitor", "type": "random", "description": "Belurat - Divine Beast Dancing Lion (at the side of Divine Beast Dancing Lion's arena) --> Scadu Altus - Darklight Catacombs - Jori, Elder Inquisitor (at the back of Jori's arena)", "sourceDetails": "at the side of Divine Beast Dancing Lion's arena", "targetDetails": "at the back of Jori's arena", "requiredItemFrom": null}, {"source": "Nokron - Aqueduct-Facing Cliffs Room", "target": "Nokron - Aqueduct-Facing Cliffs", "type": "preexisting", "description": "Nokron - Aqueduct-Facing Cliffs Room --> Nokron - Aqueduct-Facing Cliffs (dropping down the small waterfall)", "sourceDetails": "", "targetDetails": "dropping down the small waterfall", "requiredItemFrom": null}, {"source": "Nokron - Ancestral Woods", "target": "Nokron - Aqueduct-Facing Cliffs", "type": "preexisting", "description": "Nokron - Ancestral Woods --> Nokron - Aqueduct-Facing Cliffs (dropping down past Aqueduct-Facing Cliffs grace)", "sourceDetails": "", "targetDetails": "dropping down past Aqueduct-Facing Cliffs grace", "requiredItemFrom": null}, {"source": "Mohg, the Omen", "target": "Above Frenzied Flame Proscription", "type": "preexisting", "description": "Mohg, the Omen --> Above Frenzied Flame Proscription (at the Morgott the Grace-Given gate after Mohg the Omen's arena)", "sourceDetails": "", "targetDetails": "at the Morgott the Grace-Given gate after Mohg the Omen's arena", "requiredItemFrom": null}, {"source": "Specimen Storehouse - Back Section", "target": "Haligtree Town", "type": "random", "description": "Specimen Storehouse - Back Section (past the statue after using O Mother) --> Haligtree Town (before Loretta's arena), using an item from Belurat", "sourceDetails": "past the statue after using O Mother", "targetDetails": "before Loretta's arena", "requiredItemFrom": "Belurat"}, {"source": "Above Frenzied Flame Proscription", "target": "Frenzied Flame Proscription", "type": "preexisting", "description": "Above Frenzied Flame Proscription --> Frenzied Flame Proscription (dropping down the beams)", "sourceDetails": "", "targetDetails": "dropping down the beams", "requiredItemFrom": null}, {"source": "Frenzied Flame Proscription", "target": "Deeproot Depths from Proscription", "type": "preexisting", "description": "Frenzied Flame Proscription --> Deeproot Depths from Proscription (dropping down past two illusory walls)", "sourceDetails": "", "targetDetails": "dropping down past two illusory walls", "requiredItemFrom": null}, {"source": "Nokron - Aqueduct-Facing Cliffs", "target": "Scaduview - Scadutree Chalice", "type": "random", "description": "Nokron - Aqueduct-Facing Cliffs (before Valiant Gargoyles' arena) --> Scaduview - Scadutree Chalice (after Gaius's arena)", "sourceDetails": "before Valiant Gargoyles' arena", "targetDetails": "after Gaius's arena", "requiredItemFrom": null}, {"source": "Leyndell - Erdtree Entrance", "target": "Ashen Leyndell - Erdtree Entrance", "type": "preexisting", "description": "Leyndell - Erdtree Entrance --> Ashen Leyndell - Erdtree Entrance (after burning the Erdtree by defeating the boss in Maliketh's arena)", "sourceDetails": "", "targetDetails": "after burning the Erdtree by defeating the boss in Maliketh's arena", "requiredItemFrom": null}, {"source": "Margit, the Fell Omen", "target": "Dragonkin Soldier of Nokstella", "type": "random", "description": "Margit, the Fell Omen (at the back of Margit's arena) --> Dragonkin Soldier of Nokstella (at the front of Dragonkin of Nokstella's arena)", "sourceDetails": "at the back of Margit's arena", "targetDetails": "at the front of Dragonkin of Nokstella's arena", "requiredItemFrom": null}, {"source": "Scadu Altus - Darklight Catacombs - Jori, Elder Inquisitor", "target": "Ashen Leyndell - Elden Throne", "type": "random", "description": "Scadu Altus - Darklight Catacombs - Jori, Elder Inquisitor (at the front of Jori's arena) --> Ashen Leyndell - Elden Throne (at the front of Hoarah Loux's arena)", "sourceDetails": "at the front of Jori's arena", "targetDetails": "at the front of Hoarah Loux's arena", "requiredItemFrom": null}, {"source": "Divine Tower of East Altus", "target": "Divine Tower of East Altus Start", "type": "preexisting", "description": "Divine Tower of East Altus --> Divine Tower of East Altus Start (at the Morgott the Grace-Given gate coming from Forbidden Lands)", "sourceDetails": "", "targetDetails": "at the Morgott the Grace-Given gate coming from Forbidden Lands", "requiredItemFrom": null}, {"source": "Divine Tower of East Altus", "target": "Divine Tower of East Altus Interior", "type": "preexisting", "description": "Divine Tower of East Altus --> Divine Tower of East Altus Interior (opening the heavy door), using items from Divine Tower of East Altus Start; Academy of Raya Lucaria - Grand Library Chest", "sourceDetails": "", "targetDetails": "opening the heavy door", "requiredItemFrom": null}, {"source": "Divine Tower of East Altus Start", "target": "Weeping Peninsula - Castle Morne", "type": "random", "description": "Divine Tower of East Altus Start (at the elevator to the Divine Tower of East Altus) --> Weeping Peninsula - Castle Morne (at the entrance from Weeping Peninsula)", "sourceDetails": "at the elevator to the Divine Tower of East Altus", "targetDetails": "at the entrance from Weeping Peninsula", "requiredItemFrom": null}, {"source": "Dragonkin Soldier of Nokstella", "target": "Stone Coffin Fissure - Before Boss", "type": "random", "description": "Dragonkin Soldier of Nokstella (at the back of Dragonkin of Nokstella's arena) --> Stone Coffin Fissure - Before Boss (before the boss dropdown)", "sourceDetails": "at the back of Dragonkin of Nokstella's arena", "targetDetails": "before the boss dropdown", "requiredItemFrom": null}, {"source": "Ashen Leyndell - Elden Throne", "target": "Commander Niall", "type": "random", "description": "Ashen Leyndell - Elden Throne (at the back of Hoarah Loux's arena) --> Commander Niall (at the back of Commander Niall's arena)", "sourceDetails": "at the back of Hoarah Loux's arena", "targetDetails": "at the back of Commander Niall's arena", "requiredItemFrom": null}, {"source": "Scadu Altus - Manus Metyr", "target": "Finger Ruins of Miyr", "type": "preexisting", "description": "Scadu Altus - Manus Metyr --> Finger Ruins of Miyr (in map), using an item from Belurat", "sourceDetails": "", "targetDetails": "in map", "requiredItemFrom": "Belurat"}, {"source": "Commander Niall", "target": "Nokron - Ancestral Woods", "type": "random", "description": "Commander Niall (at the front of Commander Niall's arena) --> Nokron - Ancestral Woods (after Mimic Tear's arena)", "sourceDetails": "at the front of Commander Niall's arena", "targetDetails": "after Mimic Tear's arena", "requiredItemFrom": null}, {"source": "Nokron - Night's Sacred Grounds", "target": "Nokron - Ancestral Woods", "type": "preexisting", "description": "Nokron - Night's Sacred Grounds --> Nokron - Ancestral Woods (using the sending gate before the Fingerslayer Blade chest)", "sourceDetails": "", "targetDetails": "using the sending gate before the Fingerslayer Blade chest", "requiredItemFrom": null}, {"source": "Nokron - Ancestral Woods", "target": "Nokron - Night's Sacred Grounds", "type": "preexisting", "description": "Nokron - Ancestral Woods --> Nokron - Night's Sacred Grounds (dropping down south of the Ancestral Grounds grace)", "sourceDetails": "", "targetDetails": "dropping down south of the Ancestral Grounds grace", "requiredItemFrom": null}, {"source": "Nokron - Ancestral Woods", "target": "Nokron to Siofra Path", "type": "preexisting", "description": "Nokron - Ancestral Woods --> Nokron to Siofra Path (dropping down below the east-side bridge)", "sourceDetails": "", "targetDetails": "dropping down below the east-side bridge", "requiredItemFrom": null}, {"source": "Siofra River", "target": "Nokron to Siofra Path", "type": "preexisting", "description": "Siofra River --> Nokron to Siofra Path (using the sending gate atop rubble before the Worshippers' Woods grace)", "sourceDetails": "", "targetDetails": "using the sending gate atop rubble before the Worshippers' Woods grace", "requiredItemFrom": null}, {"source": "Nokron - Ancestral Woods", "target": "Mohgwyn Palace", "type": "random", "description": "Nokron - Ancestral Woods (using Horned Remains in Nokron) --> Mohgwyn Palace (arriving by the Palace Approach grace)", "sourceDetails": "using Horned Remains in Nokron", "targetDetails": "arriving by the Palace Approach grace", "requiredItemFrom": null}, {"source": "Nokron to Siofra Path", "target": "Siofra River", "type": "preexisting", "description": "Nokron to Siofra Path --> Siofra River (dropping down to the north)", "sourceDetails": "", "targetDetails": "dropping down to the north", "requiredItemFrom": null}, {"source": "Siofra River", "target": "Siofra River", "type": "preexisting", "description": "Siofra River --> Siofra River (using the sending gate after the Siofra River Bank grace)", "sourceDetails": "", "targetDetails": "using the sending gate after the Siofra River Bank grace", "requiredItemFrom": null}, {"source": "Siofra River", "target": "Siofra River", "type": "preexisting", "description": "Siofra River --> Siofra River (using the sending gate after the Worshippers' Woods grace)", "sourceDetails": "", "targetDetails": "using the sending gate after the Worshippers' Woods grace", "requiredItemFrom": null}, {"source": "Mohgwyn Palace", "target": "Shadow Keep - West Rampart", "type": "random", "description": "Mohgwyn Palace (before Mohg's arena) --> Shadow Keep - West Rampart (at the elevator to West Rampart)", "sourceDetails": "before Mohg's arena", "targetDetails": "at the elevator to West Rampart", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria Main Entrance", "target": "Ancient Ruins of Rauh - After Romina", "type": "random", "description": "Academy of Raya Lucaria Main Entrance (using South-facing gate at Raya Lucaria Main Entrance) --> Ancient Ruins of Rauh - After Romina (after Romina's arena), using an item from Mohgwyn Palace", "sourceDetails": "using South-facing gate at Raya Lucaria Main Entrance", "targetDetails": "after Romina's arena", "requiredItemFrom": "Mohgwyn Palace"}, {"source": "Siofra River", "target": "Stranded Graveyard", "type": "random", "description": "Siofra River (at the top of the Siofra River Well) --> Stranded Graveyard (at the exit to Limgrave)", "sourceDetails": "at the top of the Siofra River Well", "targetDetails": "at the exit to Limgrave", "requiredItemFrom": null}, {"source": "Limgrave - Fringefolk Hero's Grave", "target": "Stranded Graveyard", "type": "preexisting", "description": "Limgrave - Fringefolk Hero's Grave --> Stranded Graveyard (going backwards through Imp Seal)", "sourceDetails": "", "targetDetails": "going backwards through Imp Seal", "requiredItemFrom": null}, {"source": "Siofra River", "target": "Flame Peak - Giant-Conquering Hero's Grave", "type": "random", "description": "Siofra River (at the top of the Deep Siofra Well) --> Flame Peak - Giant-Conquering Hero's Grave (at the entrance from Flame Peak)", "sourceDetails": "at the top of the Deep Siofra Well", "targetDetails": "at the entrance from Flame Peak", "requiredItemFrom": null}, {"source": "Shadow Keep - West Rampart", "target": "Cave of Knowledge - From Seaside Ruins", "type": "random", "description": "Shadow Keep - West Rampart (at the exit to Rauh Ruins) --> Cave of Knowledge - From Seaside Ruins (at the back entrance from the Seaside Ruins beach)", "sourceDetails": "at the exit to Rauh Ruins", "targetDetails": "at the back entrance from the Seaside Ruins beach", "requiredItemFrom": null}, {"source": "Stranded Graveyard", "target": "Ashen Leyndell - before Divine Tower", "type": "random", "description": "Stranded Graveyard (at the door from Cave of Knowledge) --> Ashen Leyndell - before Divine Tower (at the base of the elevator to the Divine Tower of East Altus)", "sourceDetails": "at the door from Cave of Knowledge", "targetDetails": "at the base of the elevator to the Divine Tower of East Altus", "requiredItemFrom": null}, {"source": "Cave of Knowledge - From Seaside Ruins", "target": "Cave of Knowledge", "type": "preexisting", "description": "Cave of Knowledge - From Seaside Ruins --> Cave of Knowledge (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Cave of Knowledge - After Soldier of Godrick", "target": "Cave of Knowledge", "type": "preexisting", "description": "Cave of Knowledge - After Soldier of Godrick --> Cave of Knowledge (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Flame Peak - Giant-Conquering Hero's Grave", "target": "Scadu Altus - Darklight Catacombs", "type": "random", "description": "Flame Peak - Giant-Conquering Hero's Grave (before Ancient Hero of Zamor's arena) --> Scadu Altus - Darklight Catacombs (before Jori's arena)", "sourceDetails": "before Ancient Hero of Zamor's arena", "targetDetails": "before Jori's arena", "requiredItemFrom": null}, {"source": "Cave of Knowledge", "target": "Godrick the Grafted", "type": "random", "description": "Cave of Knowledge (before Soldier of Godrick's arena) --> Godrick the Grafted (at the front of Godrick's arena)", "sourceDetails": "before Soldier of Godrick's arena", "targetDetails": "at the front of Godrick's arena", "requiredItemFrom": null}, {"source": "Cave of Knowledge", "target": "Gravesite Plain - Dragon's Pit", "type": "random", "description": "Cave of Knowledge (at the door to Stranded Graveyard) --> Gravesite Plain - Dragon's Pit (at the entrance from Gravesite Plain)", "sourceDetails": "at the door to Stranded Graveyard", "targetDetails": "at the entrance from Gravesite Plain", "requiredItemFrom": null}, {"source": "Scadu Altus - Darklight Catacombs", "target": "Scadutree Base - Scadutree Avatar", "type": "random", "description": "Scadu Altus - Darklight Catacombs (at the entrance from Lower Scadu Altus) --> Scadutree Base - Scadutree Avatar (at the front of Scadutree Avatar's arena)", "sourceDetails": "at the entrance from Lower Scadu Altus", "targetDetails": "at the front of Scadutree Avatar's arena", "requiredItemFrom": null}, {"source": "Gravesite Plain - Dragon's Pit", "target": "Gravesite Plain - Dragon's Pit - Before Boss", "type": "preexisting", "description": "Gravesite Plain - Dragon's Pit --> Gravesite Plain - Dragon's Pit - Before Boss (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Gravesite Plain - Dragon's Pit - Before Boss", "target": "Volcano Manor - Temple of Eiglay", "type": "random", "description": "Gravesite Plain - Dragon's Pit - Before Boss (before Ancient Dragon-Man's arena) --> Volcano Manor - Temple of Eiglay (at the front of Godskin Noble's arena)", "sourceDetails": "before Ancient Dragon-Man's arena", "targetDetails": "at the front of Godskin Noble's arena", "requiredItemFrom": null}, {"source": "Godrick the Grafted", "target": "Stormveil Castle Throne Room", "type": "preexisting", "description": "Godrick the Grafted --> Stormveil Castle Throne Room (opening the door after the boss)", "sourceDetails": "", "targetDetails": "opening the door after the boss", "requiredItemFrom": null}, {"source": "Stormveil Castle Throne Room", "target": "Cave of Knowledge - After Soldier of Godrick", "type": "random", "description": "Stormveil Castle Throne Room (at the rear exit to Liurnia) --> Cave of Knowledge - After Soldier of Godrick (after Soldier of Godrick's arena)", "sourceDetails": "at the rear exit to Liurnia", "targetDetails": "after Soldier of Godrick's arena", "requiredItemFrom": null}, {"source": "Volcano Manor - Temple of Eiglay", "target": "Stone Coffin Fissure - After Putrescent Knight", "type": "random", "description": "Volcano Manor - Temple of Eiglay (at the back left of Godskin Noble's arena) --> Stone Coffin Fissure - After Putrescent Knight (after Putrescent Knight's arena)", "sourceDetails": "at the back left of Godskin Noble's arena", "targetDetails": "after Putrescent Knight's arena", "requiredItemFrom": null}, {"source": "Academy of Raya Lucaria - Grand Library", "target": "Academy of Raya Lucaria - Grand Library Chest", "type": "preexisting", "description": "Academy of Raya Lucaria - Grand Library --> Academy of Raya Lucaria - Grand Library Chest (opening the locked chest using the Discarded Palace Key), using an item from Godrick the Grafted", "sourceDetails": "", "targetDetails": "opening the locked chest using the Discarded Palace Key", "requiredItemFrom": "Godrick the Grafted"}, {"source": "Ashen Leyndell - Erdtree Entrance", "target": "Stone Platform", "type": "preexisting", "description": "Ashen Leyndell - Erdtree Entrance --> Stone Platform (touching the golden light), using items from Castle Sol; Stormveil Castle before Gate; Divine Tower of East Altus Start; Academy of Raya Lucaria - Grand Library Chest; Roundtable Hold; Volcano Manor Prison Town; Liurnia Behind Caria Manor", "sourceDetails": "", "targetDetails": "touching the golden light", "requiredItemFrom": null}, {"source": "Belurat - Stairs before Enir-Ilim", "target": "Enir-Ilim", "type": "preexisting", "description": "Belurat - Stairs before Enir-Ilim --> Enir-Ilim (in map after burning the Sealing Tree), using items from Belurat; Specimen Storehouse - Messmer the Impaler; Scadutree Base - Scadutree Avatar; Ancient Ruins of Rauh - East; Ancient Ruins of Rauh - Romina, Saint of the Bud; Scaduview - Commander Gaius; Jagged Peak - Bayle; Finger Birthing Grounds - Metyr, Mother of Fingers; Scadu Altus - Bonny Gaol - Curseblade Labirith; Gravesite Plain - Ruined Forge Lava Intake; Scadu Altus - Ruined Forge of Starfall Past; Belurat Swamp; Rauh Base - Taylew's Ruined Forge; Castle Ensis; Belurat - Divine Beast Dancing Lion; Cerulean Coast - Dancer of Ranah; East Scadu Altus; Shadow Keep - Golden Hippopotamus", "sourceDetails": "", "targetDetails": "in map after burning the Sealing Tree", "requiredItemFrom": null}, {"source": "Enir-Ilim - After Leda", "target": "Enir-Ilim", "type": "preexisting", "description": "Enir-Ilim - After Leda --> Enir-Ilim (going back after defeating Leda)", "sourceDetails": "", "targetDetails": "going back after defeating Leda", "requiredItemFrom": null}, {"source": "Finger Ruins of Miyr", "target": "Enir-Ilim", "type": "random", "description": "Finger Ruins of Miyr (using the Hole-Laden Necklace below Manus Metyr) --> Enir-Ilim (arriving at Enir-Ilim's Outer Wall), using items from Belurat; Specimen Storehouse - Messmer the Impaler; Scadutree Base - Scadutree Avatar; Ancient Ruins of Rauh - East; Ancient Ruins of Rauh - Romina, Saint of the Bud; Scaduview - Commander Gaius; Jagged Peak - Bayle; Finger Birthing Grounds - Metyr, Mother of Fingers; Scadu Altus - Bonny Gaol - Curseblade Labirith; Gravesite Plain - Ruined Forge Lava Intake; Scadu Altus - Ruined Forge of Starfall Past; Belurat Swamp; Rauh Base - Taylew's Ruined Forge; Castle Ensis; Belurat - Divine Beast Dancing Lion; Cerulean Coast - Dancer of Ranah; East Scadu Altus; Shadow Keep - Golden Hippopotamus", "sourceDetails": "using the Hole-Laden Necklace below Manus Metyr", "targetDetails": "arriving at Enir-Ilim's Outer Wall", "requiredItemFrom": null}, {"source": "Ancient Ruins of Rauh - After Romina", "target": "Farum Azula - Crumbling Beast Grave", "type": "random", "description": "Ancient Ruins of Rauh - After Romina (burning the Sealing Tree) --> Farum Azula - Crumbling Beast Grave (arriving at the start of Farum Azula), using items from Belurat; Specimen Storehouse - Messmer the Impaler; Scadutree Base - Scadutree Avatar; Ancient Ruins of Rauh - East; Ancient Ruins of Rauh - Romina, Saint of the Bud; Scaduview - Commander Gaius; Jagged Peak - Bayle; Finger Birthing Grounds - Metyr, Mother of Fingers; Scadu Altus - Bonny Gaol - Curseblade Labirith; Gravesite Plain - Ruined Forge Lava Intake; Scadu Altus - Ruined Forge of Starfall Past; Belurat Swamp; Rauh Base - Taylew's Ruined Forge; Castle Ensis; Belurat - Divine Beast Dancing Lion; Cerulean Coast - Dancer of Ranah; East Scadu Altus; Shadow Keep - Golden Hippopotamus", "sourceDetails": "burning the Sealing Tree", "targetDetails": "arriving at the start of Farum Azula", "requiredItemFrom": null}, {"source": "Enir-Ilim", "target": "Enir-Ilim - Belurat", "type": "preexisting", "description": "Enir-Ilim --> Enir-Ilim - Belurat (dropping down)", "sourceDetails": "", "targetDetails": "dropping down", "requiredItemFrom": null}, {"source": "Enir-Ilim", "target": "Enir-Ilim - After Leda", "type": "preexisting", "description": "Enir-Ilim --> Enir-Ilim - After Leda (defeating Leda)", "sourceDetails": "", "targetDetails": "defeating Leda", "requiredItemFrom": null}, {"source": "Enir-Ilim - After Leda", "target": "Enir-Ilim - Promised Consort Radahn", "type": "preexisting", "description": "Enir-Ilim - After Leda --> Enir-Ilim - Promised Consort Radahn (before Promised Consort Radahn's arena)", "sourceDetails": "", "targetDetails": "before Promised Consort Radahn's arena", "requiredItemFrom": null}], "metadata": {"seed": "561689827", "options": "Options and seed: bossreqdlc coupledwarp crawl dlc newgraces openstart req_backportal req_forge req_gaol req_grave req_graveyard req_rauhruins req_underground runes_end:7 scadushop scale sombermode stoneshop tierreq v6 seed:561689827"}};
