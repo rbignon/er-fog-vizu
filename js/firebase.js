@@ -161,7 +161,8 @@ function listenToSession() {
             if (!viewerUpdateThrottle) {
                 viewerUpdateThrottle = setTimeout(() => {
                     viewerUpdateThrottle = null;
-                    if (pendingViewerData) {
+                    // Skip if we're in the middle of a re-render
+                    if (pendingViewerData && !isRenderingGraph) {
                         applySessionData(pendingViewerData);
                         pendingViewerData = null;
                     }
@@ -274,6 +275,8 @@ function getFullSyncState() {
                 visible: !nodeEl.empty() && nodeEl.style("display") !== "none",
                 highlighted: !nodeEl.empty() && nodeEl.classed("highlighted"),
                 dimmed: !nodeEl.empty() && nodeEl.classed("dimmed"),
+                frontierHighlight: !nodeEl.empty() && nodeEl.classed("frontier-highlight"),
+                accessHighlight: !nodeEl.empty() && nodeEl.classed("access-highlight"),
                 discovered: discovered,
                 tags: tags,
                 isBoss: n.isBoss || false,
@@ -299,6 +302,7 @@ function getFullSyncState() {
                 visible: !linkEl.empty() && linkEl.style("display") !== "none",
                 highlighted: !linkEl.empty() && linkEl.classed("highlighted"),
                 dimmed: !linkEl.empty() && linkEl.classed("dimmed"),
+                frontierHighlight: !linkEl.empty() && linkEl.classed("frontier-highlight"),
                 type: l.type || null,
                 oneWay: l.oneWay || false
             };
@@ -306,9 +310,10 @@ function getFullSyncState() {
     }
     
     const transform = State.getCurrentZoomTransform();
-    
+
     return {
         created: Date.now(),
+        explorationMode: State.isExplorationMode(),
         viewport: {
             x: transform?.x || 0,
             y: transform?.y || 0,
@@ -317,6 +322,7 @@ function getFullSyncState() {
             hostHeight: window.innerHeight
         },
         selectedNodeId: State.getSelectedNodeId() ? encodeFirebaseKey(State.getSelectedNodeId()) : null,
+        frontierHighlightActive: State.isFrontierHighlightActive(),
         nodes: nodesState,
         links: linksState
     };
@@ -328,10 +334,9 @@ function getFullSyncState() {
 
 function applySessionData(data) {
     if (!data) return;
-    
+
     const hasNodes = data.nodes && Object.keys(data.nodes).length > 0;
-    const hasLinks = data.links && Object.keys(data.links).length > 0;
-    
+
     // If viewer doesn't have graph data yet, build it from received state
     const currentGraphData = State.getGraphData();
     if (hasNodes && !currentGraphData) {
@@ -340,10 +345,11 @@ function applySessionData(data) {
     }
     
     // Graph exists - apply visual state
-    applyVisualState(data);
-    
-    // Apply viewport
-    if (data.viewport && !State.isStreamerHost()) {
+    // applyVisualState returns true if a re-render was triggered
+    const rerendering = applyVisualState(data);
+
+    // Apply viewport only if not re-rendering (re-render preserves viewer's own viewport)
+    if (data.viewport && !State.isStreamerHost() && !rerendering) {
         applyViewport(data.viewport);
     }
 }
@@ -455,27 +461,59 @@ function applyViewport(vp) {
         console.warn("Invalid calculated viewport transform:", { x, y, vp });
         return;
     }
-    
+
+    // Save transform to State so it can be restored after re-renders
+    const transform = d3.zoomIdentity.translate(x, y).scale(vp.k);
+    State.setCurrentZoomTransform(transform);
+
     g.transition()
         .duration(300)
         .attr("transform", `translate(${x},${y}) scale(${vp.k})`);
 }
 
 function applyVisualState(data) {
-    if (!data.nodes) return;
-    
+    if (!data.nodes) return false;
+
+    // Check if exploration mode changed
+    if (data.explorationMode !== undefined) {
+        const currentMode = State.isExplorationMode();
+        if (data.explorationMode !== currentMode) {
+            // Mode changed - update state and re-render graph
+            State.setExplorationMode(data.explorationMode);
+            isRenderingGraph = true;
+            State.saveAllNodePositions();
+            State.emit('graphNeedsRender', { preservePositions: true });
+            setTimeout(() => {
+                isRenderingGraph = false;
+                applyVisualClasses(data);
+                if (data.viewport) applyViewport(data.viewport);
+            }, 200);
+            return true; // Re-rendering
+        }
+    }
+
     const simulation = State.getSimulation();
     const d3Nodes = simulation ? simulation.nodes() : [];
     let positionsChanged = false;
     let explorationChanged = false;
-    
+
     const explorationState = State.getExplorationState();
     
-    // Apply node states
+    // First pass: save ALL node positions from host (including nodes not yet visible)
+    // This ensures newly discovered nodes will have correct positions when rendered
     for (const [encodedId, nodeState] of Object.entries(data.nodes)) {
         const id = decodeFirebaseKey(encodedId);
-        
-        // Update position
+        if (nodeState.x !== undefined && nodeState.y !== undefined &&
+            !isNaN(nodeState.x) && !isNaN(nodeState.y) && isFinite(nodeState.x) && isFinite(nodeState.y)) {
+            State.saveNodePosition(id, nodeState.x, nodeState.y);
+        }
+    }
+
+    // Second pass: apply states to existing simulation nodes and detect changes
+    for (const [encodedId, nodeState] of Object.entries(data.nodes)) {
+        const id = decodeFirebaseKey(encodedId);
+
+        // Update position in simulation if node exists
         const simNode = d3Nodes.find(n => n.id === id);
         if (simNode && nodeState.x !== undefined && nodeState.y !== undefined &&
             !isNaN(nodeState.x) && !isNaN(nodeState.y) && isFinite(nodeState.x) && isFinite(nodeState.y)) {
@@ -484,11 +522,10 @@ function applyVisualState(data) {
                 simNode.y = nodeState.y;
                 simNode.fx = nodeState.x;
                 simNode.fy = nodeState.y;
-                State.saveNodePosition(id, nodeState.x, nodeState.y);
                 positionsChanged = true;
             }
         }
-        
+
         // Update exploration state
         if (explorationState) {
             const wasDiscovered = explorationState.discovered.has(id);
@@ -519,36 +556,77 @@ function applyVisualState(data) {
     if (explorationChanged) {
         isRenderingGraph = true;
         State.saveAllNodePositions();
+
         State.emit('graphNeedsRender', { preservePositions: true });
         setTimeout(() => {
             isRenderingGraph = false;
             applyVisualClasses(data);
-        }, 100);
-        return;
+        }, 500);
+        return true; // Re-rendering
     }
-    
+
+    // Update frontier highlight state (without triggering recalculation on viewer)
+    if (data.frontierHighlightActive !== undefined) {
+        const currentFrontierActive = State.isFrontierHighlightActive();
+        if (data.frontierHighlightActive !== currentFrontierActive) {
+            // Update button state without recalculating frontier
+            updateFrontierCheckboxState(data.frontierHighlightActive);
+        }
+    }
+
+    // Always apply visual classes from host - these include frontier highlights
     applyVisualClasses(data);
-    
+
     if (positionsChanged) {
         updatePositionsInDOM(d3Nodes);
     }
-    
-    if (data.selectedNodeId) {
-        State.setSelectedNodeId(decodeFirebaseKey(data.selectedNodeId));
+
+    // Update selected node (including deselection when null)
+    if (data.selectedNodeId !== undefined) {
+        State.setSelectedNodeId(data.selectedNodeId ? decodeFirebaseKey(data.selectedNodeId) : null);
+    }
+
+    return false; // No re-render triggered
+}
+
+function updateFrontierCheckboxState(active) {
+    // Update internal state without emitting event (to avoid recalculation)
+    // We directly update the checkbox UI
+    const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+    if (frontierCheckbox) {
+        frontierCheckbox.checked = active;
     }
 }
 
 function applyVisualClasses(data) {
+    const selectedId = data.selectedNodeId ? decodeFirebaseKey(data.selectedNodeId) : null;
+
     d3.selectAll(".node").each(function(d) {
         const encodedId = encodeFirebaseKey(d.id);
         const nodeState = data.nodes[encodedId];
         if (nodeState) {
-            d3.select(this)
-                .classed("highlighted", nodeState.highlighted || false)
-                .classed("dimmed", nodeState.dimmed || false);
+            const node = d3.select(this);
+            node.classed("highlighted", nodeState.highlighted || false)
+                .classed("dimmed", nodeState.dimmed || false)
+                .classed("frontier-highlight", nodeState.frontierHighlight || false)
+                .classed("access-highlight", nodeState.accessHighlight || false)
+                .classed("viewer-selected", d.id === selectedId);
+
+            // Add/remove selection ring for viewer mode
+            if (d.id === selectedId && isViewerMode) {
+                if (node.select(".selection-ring").empty()) {
+                    const circle = node.select("circle");
+                    const r = parseFloat(circle.attr("r")) || 7;
+                    node.insert("circle", "circle")
+                        .attr("class", "selection-ring")
+                        .attr("r", r + 8);
+                }
+            } else {
+                node.select(".selection-ring").remove();
+            }
         }
     });
-    
+
     if (data.links) {
         d3.selectAll(".link").each(function(d) {
             const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
@@ -558,7 +636,8 @@ function applyVisualClasses(data) {
             if (linkState) {
                 d3.select(this)
                     .classed("highlighted", linkState.highlighted || false)
-                    .classed("dimmed", linkState.dimmed || false);
+                    .classed("dimmed", linkState.dimmed || false)
+                    .classed("frontier-highlight", linkState.frontierHighlight || false);
             }
         });
     }
@@ -733,7 +812,8 @@ State.subscribe('viewportChanged', () => {
 
 State.subscribe('selectionChanged', () => {
     if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
     }
 });
 
@@ -750,6 +830,47 @@ State.subscribe('nodeUndiscovered', () => {
 });
 
 State.subscribe('nodeTagsChanged', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        syncToFirebase();
+    }
+});
+
+State.subscribe('nodeSelected', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
+    }
+});
+
+State.subscribe('searchMatched', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
+    }
+});
+
+State.subscribe('searchCleared', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
+    }
+});
+
+State.subscribe('frontierHighlightChanged', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
+    }
+});
+
+State.subscribe('explorationModeChanged', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Delay to allow graph re-render to complete
+        setTimeout(() => syncToFirebase(), 200);
+    }
+});
+
+State.subscribe('graphRenderCompleted', () => {
     if (State.isFirebaseConnected() && State.isStreamerHost()) {
         syncToFirebase();
     }

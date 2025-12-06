@@ -48,7 +48,7 @@ export function renderGraph(preservePositions = false) {
     
     // Restore zoom if preserving positions
     const savedTransform = State.getCurrentZoomTransform();
-    if (preservePositions && savedTransform && 
+    if (preservePositions && savedTransform &&
         isFinite(savedTransform.x) && isFinite(savedTransform.y) && isFinite(savedTransform.k)) {
         svg.call(zoom.transform, savedTransform);
     }
@@ -228,6 +228,11 @@ export function renderGraph(preservePositions = false) {
     if (State.isFrontierHighlightActive()) {
         setTimeout(() => State.emit('frontierHighlightChanged', true), 100);
     }
+
+    // Sync to Firebase after render completes (to capture restored highlights)
+    if (preservePositions) {
+        setTimeout(() => State.emit('graphRenderCompleted'), 150);
+    }
 }
 
 // ============================================================
@@ -236,15 +241,16 @@ export function renderGraph(preservePositions = false) {
 
 function updateButtonVisibility(explorationMode) {
     const resetBtn = document.getElementById('reset-exploration-btn');
-    const frontierBtn = document.getElementById('show-frontier-btn');
-    const streamerBtn = document.getElementById('streamer-mode-btn');
-    
+    const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+    const frontierLabel = frontierCheckbox?.closest('label');
+
     if (resetBtn) resetBtn.style.display = explorationMode ? 'inline-block' : 'none';
-    if (frontierBtn) {
-        frontierBtn.style.display = explorationMode ? 'inline-block' : 'none';
-        frontierBtn.classList.remove('active');
+    if (frontierLabel) {
+        frontierLabel.style.display = explorationMode ? 'flex' : 'none';
     }
-    if (streamerBtn) streamerBtn.style.display = explorationMode ? 'inline-block' : 'none';
+    if (frontierCheckbox) {
+        frontierCheckbox.checked = false;
+    }
 }
 
 function getNodeClass(d, explorationMode) {
@@ -372,10 +378,11 @@ function dragended(event, simulation) {
 
 function setupTooltip(node, nodeConnections, explorationMode, explorationState) {
     const tooltip = d3.select("#tooltip");
-    let tooltipPinned = false;
+    // Check if tooltip was already pinned (survives re-render)
+    let tooltipPinned = tooltip.classed("pinned");
     let isDraggingTooltip = false;
     let tooltipDragOffset = { x: 0, y: 0 };
-    
+
     // Tooltip drag
     tooltip.on("mousedown", function(event) {
         if (event.target.tagName === 'H3' && tooltipPinned) {
@@ -397,11 +404,11 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState) 
     d3.select(document).on("mouseup.tooltip", function() {
         isDraggingTooltip = false;
     });
-    
+
     // Track current tooltip node for refresh
     let currentTooltipNode = null;
     let currentTooltipPosition = null;
-    
+
     function refreshTooltip() {
         if (currentTooltipNode && currentTooltipPosition) {
             // Refresh with updated exploration state
@@ -465,7 +472,20 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState) 
         currentTooltipPosition = null;
         State.setSelectedNodeId(null);
     }
-    
+
+    // Restore tooltip state if it was pinned before re-render
+    if (tooltipPinned) {
+        const selectedNodeId = State.getSelectedNodeId();
+        if (selectedNodeId) {
+            const selectedNodeData = node.data().find(n => n.id === selectedNodeId);
+            if (selectedNodeData) {
+                currentTooltipNode = selectedNodeData;
+                // Re-setup handlers for the existing tooltip content
+                setupTooltipHandlers();
+            }
+        }
+    }
+
     node.on("mouseenter", (event, d) => {
         if (!tooltipPinned) showTooltip(event, d, false);
     })
@@ -637,85 +657,30 @@ function buildConnectionsList(connections, direction, isUndiscovered, exploratio
 function setupNodeClick(node, svg, nodeConnections, explorationMode, explorationState) {
     // Restore selected node from state if exists
     let selectedNode = State.getSelectedNodeId();
-    
-    // If a node was selected, restore its highlight
-    if (selectedNode) {
-        const selectedNodeData = node.data().find(n => n.id === selectedNode);
-        if (selectedNodeData) {
-            // Restore highlight without opening tooltip
-            const localResult = Exploration.followLinearPath(selectedNode);
-            let connectedNodes = localResult.nodes;
-            let connectedLinks = localResult.links;
-            
-            const showPathFromStart = document.getElementById('show-path-from-start')?.checked;
-            if (showPathFromStart) {
-                const pathResult = Exploration.findPathFromStart(selectedNode);
-                pathResult.nodes.forEach(n => connectedNodes.add(n));
-                pathResult.links.forEach(l => connectedLinks.add(l));
-            }
-            
-            node.classed("highlighted", n => connectedNodes.has(n.id))
-                .classed("dimmed", n => !connectedNodes.has(n.id));
-            
-            const connectedLinkKeys = new Set();
-            connectedLinks.forEach(l => {
-                const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-                const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-                connectedLinkKeys.add(`${sourceId}|${targetId}`);
-            });
-            
-            svg.selectAll(".link")
-                .classed("highlighted", l => {
-                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-                    return connectedLinkKeys.has(`${sourceId}|${targetId}`);
-                })
-                .classed("dimmed", l => {
-                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-                    return !connectedLinkKeys.has(`${sourceId}|${targetId}`);
-                });
-        }
-    }
-    
-    node.on("click", (event, d) => {
-        event.stopPropagation();
-        
-        if (selectedNode === d.id && node.isTooltipPinned()) {
-            resetHighlight(node, svg);
-            node.hideTooltip();
-            selectedNode = null;
-            State.setSelectedNodeId(null);
-            return;
-        }
-        
-        selectedNode = d.id;
-        State.setSelectedNodeId(d.id);
-        node.showTooltipPinned(event, d);
-        
-        // Highlight logic
-        const localResult = Exploration.followLinearPath(d.id);
+
+    // Helper function to apply selection highlights
+    function applySelectionHighlights(nodeId) {
+        const localResult = Exploration.followLinearPath(nodeId);
         let connectedNodes = localResult.nodes;
         let connectedLinks = localResult.links;
-        
+
         const showPathFromStart = document.getElementById('show-path-from-start')?.checked;
         if (showPathFromStart) {
-            const pathResult = Exploration.findPathFromStart(d.id);
+            const pathResult = Exploration.findPathFromStart(nodeId);
             pathResult.nodes.forEach(n => connectedNodes.add(n));
             pathResult.links.forEach(l => connectedLinks.add(l));
         }
-        
+
         node.classed("highlighted", n => connectedNodes.has(n.id))
             .classed("dimmed", n => !connectedNodes.has(n.id));
-        
-        // Build a set of link keys for comparison (since object references don't match)
+
         const connectedLinkKeys = new Set();
         connectedLinks.forEach(l => {
             const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
             const targetId = typeof l.target === 'object' ? l.target.id : l.target;
             connectedLinkKeys.add(`${sourceId}|${targetId}`);
         });
-        
+
         svg.selectAll(".link")
             .classed("highlighted", l => {
                 const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
@@ -727,8 +692,38 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
                 const targetId = typeof l.target === 'object' ? l.target.id : l.target;
                 return !connectedLinkKeys.has(`${sourceId}|${targetId}`);
             });
-        
-        State.emit('nodeSelected', { nodeId: d.id, connectedNodes, connectedLinks });
+    }
+
+    // If a node was selected, restore its highlight after a short delay
+    // to ensure DOM is fully updated
+    if (selectedNode) {
+        const selectedNodeData = node.data().find(n => n.id === selectedNode);
+        if (selectedNodeData) {
+            // Apply immediately and also after a delay to ensure it sticks
+            applySelectionHighlights(selectedNode);
+            setTimeout(() => applySelectionHighlights(selectedNode), 50);
+        }
+    }
+    
+    node.on("click", (event, d) => {
+        event.stopPropagation();
+
+        if (selectedNode === d.id && node.isTooltipPinned()) {
+            resetHighlight(node, svg);
+            node.hideTooltip();
+            selectedNode = null;
+            State.setSelectedNodeId(null);
+            return;
+        }
+
+        selectedNode = d.id;
+        State.setSelectedNodeId(d.id);
+        node.showTooltipPinned(event, d);
+
+        // Apply highlight
+        applySelectionHighlights(d.id);
+
+        State.emit('nodeSelected', { nodeId: d.id });
     });
     
     svg.on("click", () => {
@@ -736,6 +731,20 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
         node.hideTooltip();
         selectedNode = null;
         State.setSelectedNodeId(null);
+    });
+
+    // Listen for restore selection highlight event (e.g., after clearing frontier)
+    State.subscribe('restoreSelectionHighlight', () => {
+        if (selectedNode) {
+            applySelectionHighlights(selectedNode);
+        }
+    });
+
+    // Listen for path-from-start checkbox changes
+    State.subscribe('pathFromStartChanged', () => {
+        if (selectedNode) {
+            applySelectionHighlights(selectedNode);
+        }
     });
 }
 

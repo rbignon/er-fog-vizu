@@ -41,25 +41,24 @@
                 <div class="subtitle" id="seed-info">Loading...</div>
             </div>
             <div id="controls">
-                <div id="mode-selector">
-                    <button id="mode-spoiler" class="mode-btn" title="See the entire map">📊 Full Spoiler</button>
-                    <button id="mode-explorer" class="mode-btn active" title="Discover areas as you play">🗺️ Explorer</button>
+                <div id="controls-left">
+                    <div id="explorer-controls" style="display: none;">
+                        <button id="reset-exploration-btn" title="Reset exploration progress">Reset</button>
+                    </div>
+                    <div id="mode-selector">
+                        <button id="mode-explorer" class="mode-btn active" title="Discover areas as you play">Explorer</button>
+                        <button id="mode-spoiler" class="mode-btn" title="See the entire map">Full Spoiler</button>
+                    </div>
                 </div>
                 <div id="search-container">
                     <input type="text" id="search" placeholder="Search area...">
                     <div id="search-dropdown"></div>
                 </div>
-                <div class="control-group">
-                    <label title="When clicking a node, highlight the path from Chapel of Anticipation">
-                        <input type="checkbox" id="show-path-from-start" checked>
-                        Path from start
-                    </label>
+                <div id="controls-right">
+                    <button id="streamer-mode-btn" title="Sync with another device for streaming">Sync</button>
+                    <button id="add-item-log-btn" title="Load Item Randomizer log to see key item locations">Add Item Log</button>
+                    <button id="new-file-btn">Load New File</button>
                 </div>
-                <button id="show-frontier-btn" style="display: none;" title="Highlight unexplored areas and their access points">🔭 Frontier</button>
-                <button id="reset-exploration-btn" style="display: none;" title="Reset exploration progress">🔄 Reset</button>
-                <button id="add-item-log-btn" style="display: none;" title="Load Item Randomizer log to see key item locations">📦 Add Item Log</button>
-                <button id="streamer-mode-btn" style="display: none;" title="Sync with another device for streaming">🎬 Sync</button>
-                <button id="new-file-btn">Load New File</button>
             </div>
         </div>
 
@@ -114,10 +113,22 @@
         </div>
 
         <div id="stats">
-            <p>Areas: <span id="area-count">0</span></p>
-            <p>Interchanges: <span id="hub-count">0</span></p>
-            <p>Fog Gates: <span id="random-count">0</span></p>
-            <p>Pre-existing: <span id="preexisting-count">0</span></p>
+            <div id="stats-options">
+                <label title="Highlight unexplored areas and their access points">
+                    <input type="checkbox" id="show-frontier-checkbox">
+                    Frontier
+                </label>
+                <label title="When clicking a node, highlight the path from Chapel of Anticipation">
+                    <input type="checkbox" id="show-path-from-start" checked>
+                    Path from start
+                </label>
+            </div>
+            <div id="stats-numbers">
+                <p>Areas: <span id="area-count">0</span></p>
+                <p>Interchanges: <span id="hub-count">0</span></p>
+                <p>Fog Gates: <span id="random-count">0</span></p>
+                <p>Pre-existing: <span id="preexisting-count">0</span></p>
+            </div>
         </div>
 
         <div id="help">

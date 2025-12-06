@@ -83,6 +83,9 @@ function processSpoilerLogText(text) {
     // Store graph data and trigger render
     State.setGraphData(graphData);
     State.emit('graphNeedsRender', { preservePositions: false });
+
+    // Update UI controls based on current mode
+    updateModeButtons();
 }
 
 function handleFile(file) {
@@ -147,7 +150,7 @@ function updateItemLogButton(loaded) {
         addItemLogBtn.textContent = '✓ Item Log Loaded';
     } else {
         addItemLogBtn.classList.remove('loaded');
-        addItemLogBtn.textContent = '📦 Add Item Log';
+        addItemLogBtn.textContent = 'Add Item Log';
     }
 }
 
@@ -255,28 +258,25 @@ function handleSearch(query) {
 function updateModeButtons() {
     const modeSpoilerBtn = document.getElementById('mode-spoiler');
     const modeExplorerBtn = document.getElementById('mode-explorer');
-    const resetBtn = document.getElementById('reset-exploration-btn');
-    const frontierBtn = document.getElementById('show-frontier-btn');
-    const streamerBtn = document.getElementById('streamer-mode-btn');
-    
+    const explorerControls = document.getElementById('explorer-controls');
+    const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+
     const explorationMode = State.isExplorationMode();
-    
+
     if (explorationMode) {
         modeExplorerBtn.classList.add('active');
         modeSpoilerBtn.classList.remove('active');
-        resetBtn.style.display = 'inline-block';
-        frontierBtn.style.display = 'inline-block';
-        streamerBtn.style.display = 'inline-block';
+        explorerControls.style.display = 'flex';
     } else {
         modeSpoilerBtn.classList.add('active');
         modeExplorerBtn.classList.remove('active');
-        resetBtn.style.display = 'none';
-        frontierBtn.style.display = 'none';
-        streamerBtn.style.display = 'none';
+        explorerControls.style.display = 'none';
     }
-    
-    // Reset frontier button state
-    frontierBtn.classList.remove('active');
+
+    // Reset frontier checkbox state
+    if (frontierCheckbox) {
+        frontierCheckbox.checked = false;
+    }
     State.setFrontierHighlightActive(false);
 }
 
@@ -367,23 +367,23 @@ export function clearFrontierHighlight() {
     svg.selectAll(".node")
         .classed("frontier-highlight", false)
         .classed("access-highlight", false)
-        .classed("dimmed", false);
+        .classed("dimmed", false)
+        .classed("highlighted", false);
     svg.selectAll(".link")
         .classed("frontier-highlight", false)
-        .classed("dimmed", false);
+        .classed("dimmed", false)
+        .classed("highlighted", false);
+
+    // Restore selection highlight if a node is selected
+    State.emit('restoreSelectionHighlight');
 }
 
-function toggleFrontierHighlight() {
+function onFrontierCheckboxChange(checked) {
     if (!State.isExplorationMode() || !State.getGraphData()) return;
-    
-    const frontierBtn = document.getElementById('show-frontier-btn');
-    const currentActive = State.isFrontierHighlightActive();
-    const newActive = !currentActive;
-    
-    State.setFrontierHighlightActive(newActive);
-    frontierBtn.classList.toggle('active', newActive);
-    
-    if (newActive) {
+
+    State.setFrontierHighlightActive(checked);
+
+    if (checked) {
         highlightFrontier();
     } else {
         clearFrontierHighlight();
@@ -464,9 +464,13 @@ export function initUI() {
         }
     });
     
-    // Frontier button
-    const frontierBtn = document.getElementById('show-frontier-btn');
-    frontierBtn.addEventListener('click', toggleFrontierHighlight);
+    // Frontier checkbox
+    const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+    if (frontierCheckbox) {
+        frontierCheckbox.addEventListener('change', () => {
+            onFrontierCheckboxChange(frontierCheckbox.checked);
+        });
+    }
     
     // Path from start checkbox
     const pathCheckbox = document.getElementById('show-path-from-start');
@@ -494,11 +498,21 @@ export function initUI() {
     });
     
     // Update UI based on frontier state changes
+    // Only recalculate frontier if we're the host (not viewer)
     State.subscribe('frontierHighlightChanged', (active) => {
-        if (active) {
-            highlightFrontier();
-        } else {
-            clearFrontierHighlight();
+        const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+        if (frontierCheckbox) {
+            frontierCheckbox.checked = active;
+        }
+
+        // Only apply highlight changes if we're the host or not connected to Firebase
+        // Viewers receive visual classes directly from host via applyVisualClasses()
+        if (!State.isFirebaseConnected() || State.isStreamerHost()) {
+            if (active) {
+                highlightFrontier();
+            } else {
+                clearFrontierHighlight();
+            }
         }
     });
 }
