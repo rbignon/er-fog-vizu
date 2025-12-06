@@ -73,7 +73,7 @@ export function renderGraph(preservePositions = false) {
     
     // Show/hide "Requires Key Item" legend
     const hasRequiredItems = links.some(l => l.requiredItemFrom);
-    document.getElementById("legend-requires-item").style.display = hasRequiredItems ? 'flex' : 'none';
+    document.getElementById("legend-requires-item").classList.toggle('hidden', !hasRequiredItems);
     
     // Update seed display
     if (graphData.metadata && graphData.metadata.seed) {
@@ -244,9 +244,9 @@ function updateButtonVisibility(explorationMode) {
     const frontierCheckbox = document.getElementById('show-frontier-checkbox');
     const frontierLabel = frontierCheckbox?.closest('label');
 
-    if (resetBtn) resetBtn.style.display = explorationMode ? 'inline-block' : 'none';
+    if (resetBtn) resetBtn.classList.toggle('hidden', !explorationMode);
     if (frontierLabel) {
-        frontierLabel.style.display = explorationMode ? 'flex' : 'none';
+        frontierLabel.classList.toggle('hidden', !explorationMode);
     }
     if (frontierCheckbox) {
         frontierCheckbox.checked = false;

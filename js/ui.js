@@ -141,7 +141,7 @@ const addItemLogBtn = document.getElementById('add-item-log-btn');
 const itemLogInput = document.createElement('input');
 itemLogInput.type = 'file';
 itemLogInput.accept = '.txt,.log';
-itemLogInput.style.display = 'none';
+itemLogInput.classList.add('hidden');
 document.body.appendChild(itemLogInput);
 
 function updateItemLogButton(loaded) {
@@ -266,11 +266,11 @@ function updateModeButtons() {
     if (explorationMode) {
         modeExplorerBtn.classList.add('active');
         modeSpoilerBtn.classList.remove('active');
-        explorerControls.style.display = 'flex';
+        explorerControls.classList.remove('hidden');
     } else {
         modeSpoilerBtn.classList.add('active');
         modeExplorerBtn.classList.remove('active');
-        explorerControls.style.display = 'none';
+        explorerControls.classList.add('hidden');
     }
 
     // Reset frontier checkbox state

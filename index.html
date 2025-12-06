@@ -42,7 +42,7 @@
             </div>
             <div id="controls">
                 <div id="controls-left">
-                    <div id="explorer-controls" style="display: none;">
+                    <div id="explorer-controls" class="hidden">
                         <button id="reset-exploration-btn" title="Reset exploration progress">Reset</button>
                     </div>
                     <div id="mode-selector">
@@ -82,8 +82,8 @@
                 <div class="legend-line preexisting"></div>
                 <span>Pre-existing Connection</span>
             </div>
-            <div class="legend-item" id="legend-requires-item" style="display: none;">
-                <div class="legend-line random" style="background: #e0a020;"></div>
+            <div class="legend-item hidden" id="legend-requires-item">
+                <div class="legend-line requires-item"></div>
                 <span>Requires Key Item</span>
             </div>
             <div class="legend-item">
@@ -102,7 +102,7 @@
                 <div class="legend-node end"></div>
                 <span>End Area</span>
             </div>
-            <div class="legend-item" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #2a2520;">
+            <div class="legend-item legend-separator">
                 <div class="legend-node normal"></div>
                 <span>Passage (≤2 links)</span>
             </div>
@@ -150,7 +150,7 @@
                     <button id="create-session-btn" class="btn-primary">Create Session</button>
                     <button id="join-session-btn" class="btn-secondary">Join Session</button>
                 </div>
-                <div id="join-form" style="display: none; margin-top: 16px;">
+                <div id="join-form" class="hidden">
                     <input type="text" class="session-code-input" id="join-code-input" placeholder="Enter code" maxlength="8">
                     <div class="streamer-modal-buttons">
                         <button id="join-confirm-btn" class="btn-primary">Connect</button>
@@ -158,23 +158,23 @@
                     </div>
                 </div>
             </div>
-            <div id="streamer-connected" style="display: none;">
+            <div id="streamer-connected" class="hidden">
                 <div class="session-code-display">
                     <div class="code" id="session-code-display">----</div>
-                    <p style="font-size: 0.8rem; color: #6a5a4a; margin-top: 8px;">Share this code with the other device</p>
+                    <p class="session-code-hint">Share this code with the other device</p>
                 </div>
-                <div class="viewer-url-display" style="margin-bottom: 16px;">
-                    <label style="font-size: 0.8rem; color: #6a5a4a; display: block; margin-bottom: 6px;">Viewer URL (for OBS):</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="viewer-url-input" readonly style="flex: 1; padding: 8px; background: #0a0908; border: 1px solid #3a3530; border-radius: 4px; color: #c9a227; font-size: 0.75rem; font-family: monospace;">
-                        <button id="copy-url-btn" class="btn-secondary" style="padding: 8px 12px; white-space: nowrap;">📋 Copy</button>
+                <div class="viewer-url-display">
+                    <label>Viewer URL (for OBS):</label>
+                    <div class="url-input-group">
+                        <input type="text" id="viewer-url-input" readonly>
+                        <button id="copy-url-btn" class="btn-secondary btn-copy">📋 Copy</button>
                     </div>
                 </div>
                 <div class="sync-status" id="sync-status">
                     <span class="sync-dot"></span>
                     <span>Connected</span>
                 </div>
-                <div class="streamer-modal-buttons" style="margin-top: 16px;">
+                <div class="streamer-modal-buttons spaced">
                     <button id="disconnect-btn" class="btn-disconnect">Disconnect</button>
                 </div>
             </div>

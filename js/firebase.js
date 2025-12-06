@@ -401,7 +401,6 @@ function buildGraphFromSessionData(data) {
     const uploadScreen = document.getElementById('upload-screen');
     if (uploadScreen) {
         uploadScreen.classList.add('hidden');
-        uploadScreen.style.display = 'none';
     }
     const mainUI = document.getElementById('main-ui');
     if (mainUI) {
@@ -683,10 +682,10 @@ function updatePositionsInDOM(d3Nodes) {
 
 function showConnectedUI() {
     const sessionCode = State.getSessionCode();
-    
+
     document.getElementById('session-code-display').textContent = sessionCode;
-    document.getElementById('streamer-not-connected').style.display = 'none';
-    document.getElementById('streamer-connected').style.display = 'block';
+    document.getElementById('streamer-not-connected').classList.add('hidden');
+    document.getElementById('streamer-connected').classList.remove('hidden');
     document.getElementById('streamer-mode-btn').classList.add('connected');
     
     const viewerUrl = window.location.origin + window.location.pathname +
@@ -700,9 +699,9 @@ function showConnectedUI() {
 }
 
 function showDisconnectedUI() {
-    document.getElementById('streamer-not-connected').style.display = 'block';
-    document.getElementById('streamer-connected').style.display = 'none';
-    document.getElementById('join-form').style.display = 'none';
+    document.getElementById('streamer-not-connected').classList.remove('hidden');
+    document.getElementById('streamer-connected').classList.add('hidden');
+    document.getElementById('join-form').classList.add('hidden');
     document.getElementById('streamer-mode-btn').classList.remove('connected');
 }
 
@@ -739,15 +738,15 @@ export function initStreamerUI() {
     const joinSessionBtn = document.getElementById('join-session-btn');
     if (joinSessionBtn) {
         joinSessionBtn.addEventListener('click', () => {
-            document.getElementById('join-form').style.display = 'block';
+            document.getElementById('join-form').classList.remove('hidden');
             document.getElementById('join-code-input').focus();
         });
     }
-    
+
     const joinCancelBtn = document.getElementById('join-cancel-btn');
     if (joinCancelBtn) {
         joinCancelBtn.addEventListener('click', () => {
-            document.getElementById('join-form').style.display = 'none';
+            document.getElementById('join-form').classList.add('hidden');
         });
     }
     

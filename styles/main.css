@@ -1344,6 +1344,73 @@ marker path {
     border-color: #8a8060;
 }
 
+/* Legend requires-item line */
+.legend-line.requires-item {
+    background: #e0a020;
+}
+
+/* Legend separator (for passage/hub distinction) */
+.legend-item.legend-separator {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #2a2520;
+}
+
+/* Hidden elements (controlled by JS) */
+.hidden {
+    display: none !important;
+}
+
+/* Viewer URL display in streamer modal */
+.viewer-url-display {
+    margin-bottom: 16px;
+}
+
+.viewer-url-display label {
+    font-size: 0.8rem;
+    color: #6a5a4a;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.viewer-url-display .url-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.viewer-url-display input[type="text"] {
+    flex: 1;
+    padding: 8px;
+    background: #0a0908;
+    border: 1px solid #3a3530;
+    border-radius: 4px;
+    color: #c9a227;
+    font-size: 0.75rem;
+    font-family: monospace;
+}
+
+.viewer-url-display .btn-copy {
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+
+/* Session code hint */
+.session-code-hint {
+    font-size: 0.8rem;
+    color: #6a5a4a;
+    margin-top: 8px;
+}
+
+/* Streamer modal buttons spacing */
+.streamer-modal-buttons.spaced {
+    margin-top: 16px;
+}
+
+/* Join form spacing */
+#join-form {
+    margin-top: 16px;
+}
+
 /* Stats */
 #stats {
     position: fixed;
