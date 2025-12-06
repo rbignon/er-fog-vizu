@@ -4,16 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Elden Ring Fog Gate Randomizer Visualizer - a web-based tool to visualize spoiler logs from the Fog Gate Randomizer mod. Pure frontend with optional Firebase sync for streamers.
+Elden Ring Fog Gate Randomizer Visualizer - a web-based tool to visualize spoiler logs from the Fog Gate Randomizer mod. Frontend with Python WebSocket backend for streamer sync.
 
 ## Running the Application
 
 ```bash
-./serve.sh              # Python HTTP server on port 8000
-./serve.sh 8080         # Custom port
+pip install -r requirements.txt
+python server.py              # FastAPI server on port 8001
+python server.py --port 8080  # Custom port
 ```
 
-Open `http://localhost:8000` in browser. No build step required - ES6 modules run directly.
+Open `http://localhost:8001` in browser. No build step required - ES6 modules run directly.
 
 ## Architecture
 
@@ -29,9 +30,14 @@ Open `http://localhost:8000` in browser. No build step required - ES6 modules ru
 - `graph.js` - D3.js force simulation, rendering, interactions
 - `ui.js` - File upload, controls, search, modals
 - `exploration.js` - Discovery logic, pathfinding, preexisting propagation
-- `firebase.js` - Streamer sync (host/viewer modes)
+- `sync.js` - WebSocket streamer sync (host/viewer modes)
 
-**Data Flow**: File Upload → Parser → State → Graph Render → UI Events → State Updates → Firebase Sync
+**Backend** (`server.py`):
+- FastAPI with WebSocket support
+- Serves static files from `src/`
+- In-memory session management (no persistence needed)
+
+**Data Flow**: File Upload → Parser → State → Graph Render → UI Events → State Updates → WebSocket Sync
 
 ## Key Patterns
 
@@ -44,8 +50,9 @@ Open `http://localhost:8000` in browser. No build step required - ES6 modules ru
 - `tags`: Map of area ID → array of tag IDs
 - Preexisting connections auto-propagate discoveries
 
-**Firebase Sync**:
-- Host creates session, viewers join with code
+**WebSocket Sync**:
+- Host creates session via `/ws/host`, receives 4-char code
+- Viewers join via `/ws/viewer/{code}`
 - Visual state (CSS classes, positions, viewport) synced in real-time
 - Viewer mode: `?viewer=true&session=CODE`
 - Classes synced: `highlighted`, `dimmed`, `frontier-highlight`, `access-highlight`
@@ -57,12 +64,17 @@ Open `http://localhost:8000` in browser. No build step required - ES6 modules ru
 - localStorage persists exploration per seed: `er-fog-exploration-{seed}`
 - D3 selections use `.node` and `.link` classes
 
-## Pièges connus (Firebase Sync)
+## Known Pitfalls (WebSocket Sync)
 
-1. **Timing du sync** : Les événements comme `nodeSelected`, `frontierHighlightChanged` doivent attendre ~50ms avant de sync pour que les classes CSS soient appliquées au DOM
+1. **Sync timing**: Events like `nodeSelected`, `frontierHighlightChanged` must wait ~50ms before sync so CSS classes are applied to DOM first
 
-2. **Classes CSS à synchroniser** : `highlighted`, `dimmed`, `frontier-highlight`, `access-highlight` - toutes doivent être capturées dans `getFullSyncState()` et appliquées dans `applyVisualClasses()`
+2. **CSS classes to sync**: `highlighted`, `dimmed`, `frontier-highlight`, `access-highlight` - all must be captured in `getFullSyncState()` and applied in `applyVisualClasses()`
 
-3. **Mode exploration** : Doit être synchronisé (`explorationMode` dans l'état Firebase) sinon le viewer garde l'ancien mode quand l'hôte change
+3. **Exploration mode**: Must be synced (`explorationMode` in state) otherwise viewer keeps old mode when host changes
 
-4. **Pas de recalcul côté viewer** : Le viewer applique les classes reçues directement. Il ne doit jamais appeler `highlightFrontier()` lui-même - vérifier `State.isStreamerHost()` avant tout calcul local
+4. **No recalculation on viewer**: Viewer applies received classes directly. It must never call `highlightFrontier()` itself - check `State.isStreamerHost()` before any local calculation
+
+## Deployment
+
+- `fog-vizu.service` - systemd unit file
+- `fog-vizu.nginx.conf` - nginx reverse proxy config with WebSocket support
