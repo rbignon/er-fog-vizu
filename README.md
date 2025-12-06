@@ -4,6 +4,8 @@ An interactive web-based tool to visualize spoiler logs from the [Fog Gate Rando
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
+**Try it online:** [https://malenia.win/fog-vizu/](https://malenia.win/fog-vizu/)
+
 ## Features
 
 - **Interactive Graph Visualization** - Explore fog gate connections as a force-directed graph powered by D3.js
