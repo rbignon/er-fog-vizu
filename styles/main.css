@@ -1437,6 +1437,69 @@ marker path {
     font-size: 0.85rem;
 }
 
+/* Stats tags section */
+#stats-tags {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #3a3020;
+    text-align: left;
+}
+
+.stats-tags-title {
+    font-size: 0.75rem;
+    color: #6a5d45;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+}
+
+#stats-tags-list {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 4px;
+    justify-content: end;
+}
+
+.stats-tag {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stats-tag:hover {
+    background: rgba(80, 70, 50, 0.4);
+    border-color: #6a5d45;
+}
+
+.stats-tag.active {
+    background: rgba(100, 90, 60, 0.5);
+    border-color: #8a7d55;
+    box-shadow: 0 0 4px rgba(140, 120, 80, 0.3);
+}
+
+.stats-tag .tag-emoji {
+    font-size: 0.8rem;
+}
+
+.stats-tag .tag-count {
+    color: #9a8d75;
+    font-size: 0.7rem;
+}
+
+/* Tag highlight for nodes */
+.node.tag-highlighted circle {
+    filter: drop-shadow(0 0 8px #c9a227) drop-shadow(0 0 12px #c9a227);
+}
+
+.node.tag-highlighted text {
+    fill: #ffffff !important;
+    opacity: 1 !important;
+}
+
 #stats-numbers p {
     font-size: 0.85rem;
     color: #7a6d55;

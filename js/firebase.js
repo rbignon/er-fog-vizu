@@ -277,6 +277,7 @@ function getFullSyncState() {
                 dimmed: !nodeEl.empty() && nodeEl.classed("dimmed"),
                 frontierHighlight: !nodeEl.empty() && nodeEl.classed("frontier-highlight"),
                 accessHighlight: !nodeEl.empty() && nodeEl.classed("access-highlight"),
+                tagHighlighted: !nodeEl.empty() && nodeEl.classed("tag-highlighted"),
                 discovered: discovered,
                 tags: tags,
                 isBoss: n.isBoss || false,
@@ -609,6 +610,7 @@ function applyVisualClasses(data) {
                 .classed("dimmed", nodeState.dimmed || false)
                 .classed("frontier-highlight", nodeState.frontierHighlight || false)
                 .classed("access-highlight", nodeState.accessHighlight || false)
+                .classed("tag-highlighted", nodeState.tagHighlighted || false)
                 .classed("viewer-selected", d.id === selectedId);
 
             // Add/remove selection ring for viewer mode
@@ -856,6 +858,13 @@ State.subscribe('searchCleared', () => {
 });
 
 State.subscribe('frontierHighlightChanged', () => {
+    if (State.isFirebaseConnected() && State.isStreamerHost()) {
+        // Small delay to ensure CSS classes are applied before sync
+        setTimeout(() => syncToFirebase(), 50);
+    }
+});
+
+State.subscribe('tagFilterChanged', () => {
     if (State.isFirebaseConnected() && State.isStreamerHost()) {
         // Small delay to ensure CSS classes are applied before sync
         setTimeout(() => syncToFirebase(), 50);

@@ -6,6 +6,9 @@ import { ItemLogParser } from './parser.js';
 import * as State from './state.js';
 import * as Exploration from './exploration.js';
 
+// Track which tags are selected for filtering
+let selectedTagFilters = new Set();
+
 // ============================================================
 // RENDER GRAPH
 // ============================================================
@@ -229,6 +232,14 @@ export function renderGraph(preservePositions = false) {
         setTimeout(() => State.emit('frontierHighlightChanged', true), 100);
     }
 
+    // Update tag stats display
+    updateTagStats();
+
+    // Re-apply tag highlight if filters are active
+    if (selectedTagFilters.size > 0) {
+        setTimeout(() => applyTagHighlight(), 100);
+    }
+
     // Sync to Firebase after render completes (to capture restored highlights)
     if (preservePositions) {
         setTimeout(() => State.emit('graphRenderCompleted'), 150);
@@ -251,6 +262,128 @@ function updateButtonVisibility(explorationMode) {
     if (frontierCheckbox) {
         frontierCheckbox.checked = false;
     }
+}
+
+// ============================================================
+// TAG STATS & FILTERING
+// ============================================================
+
+function updateTagStats() {
+    const explorationMode = State.isExplorationMode();
+    const explorationState = State.getExplorationState();
+    const statsTagsContainer = document.getElementById('stats-tags');
+    const statsTagsList = document.getElementById('stats-tags-list');
+
+    if (!statsTagsContainer || !statsTagsList) return;
+
+    // Hide tag stats if not in exploration mode or no tags
+    if (!explorationMode || !explorationState || !explorationState.tags) {
+        statsTagsContainer.classList.add('hidden');
+        return;
+    }
+
+    // Count occurrences of each tag
+    const tagCounts = new Map();
+    explorationState.tags.forEach((tags) => {
+        tags.forEach(tagId => {
+            tagCounts.set(tagId, (tagCounts.get(tagId) || 0) + 1);
+        });
+    });
+
+    // Hide if no tags are used
+    if (tagCounts.size === 0) {
+        statsTagsContainer.classList.add('hidden');
+        return;
+    }
+
+    // Show and populate
+    statsTagsContainer.classList.remove('hidden');
+    statsTagsList.innerHTML = '';
+
+    State.AVAILABLE_TAGS.forEach(tag => {
+        const count = tagCounts.get(tag.id) || 0;
+        if (count === 0) return;
+
+        const tagEl = document.createElement('div');
+        tagEl.className = 'stats-tag' + (selectedTagFilters.has(tag.id) ? ' active' : '');
+        tagEl.setAttribute('data-tag-id', tag.id);
+        tagEl.innerHTML = `<span class="tag-emoji">${tag.emoji}</span><span class="tag-count">${count}</span>`;
+        tagEl.title = `Click to highlight areas with this tag`;
+
+        tagEl.addEventListener('click', () => {
+            toggleTagFilter(tag.id);
+        });
+
+        statsTagsList.appendChild(tagEl);
+    });
+}
+
+function toggleTagFilter(tagId) {
+    if (selectedTagFilters.has(tagId)) {
+        selectedTagFilters.delete(tagId);
+    } else {
+        selectedTagFilters.add(tagId);
+    }
+
+    // Update UI
+    document.querySelectorAll('.stats-tag').forEach(el => {
+        const id = el.getAttribute('data-tag-id');
+        el.classList.toggle('active', selectedTagFilters.has(id));
+    });
+
+    // Apply highlight
+    applyTagHighlight();
+}
+
+function applyTagHighlight() {
+    const svg = d3.select("svg");
+    const nodes = svg.selectAll(".node");
+    const links = svg.selectAll(".link");
+    const explorationState = State.getExplorationState();
+
+    if (selectedTagFilters.size === 0) {
+        // Clear tag highlight
+        nodes.classed("tag-highlighted", false).classed("dimmed", false);
+        links.classed("dimmed", false);
+
+        // Restore frontier highlight if active
+        if (State.isFrontierHighlightActive()) {
+            State.emit('frontierHighlightChanged', true);
+        }
+        // Restore selection highlight if a node is selected
+        State.emit('restoreSelectionHighlight');
+
+        // Sync to Firebase
+        State.emit('tagFilterChanged');
+        return;
+    }
+
+    // Find nodes with any of the selected tags
+    const matchingNodeIds = new Set();
+    if (explorationState && explorationState.tags) {
+        explorationState.tags.forEach((tags, nodeId) => {
+            if (tags.some(tagId => selectedTagFilters.has(tagId))) {
+                matchingNodeIds.add(nodeId);
+            }
+        });
+    }
+
+    // Apply highlight
+    nodes.classed("tag-highlighted", d => matchingNodeIds.has(d.id))
+         .classed("dimmed", d => !matchingNodeIds.has(d.id));
+
+    links.classed("dimmed", true);
+
+    // Sync to Firebase
+    State.emit('tagFilterChanged');
+}
+
+export function clearTagFilters() {
+    selectedTagFilters.clear();
+    document.querySelectorAll('.stats-tag').forEach(el => {
+        el.classList.remove('active');
+    });
+    applyTagHighlight();
 }
 
 function getNodeClass(d, explorationMode) {
@@ -782,7 +915,7 @@ State.subscribe('nodeTagsUpdated', ({ nodeId, tags }) => {
     // Update node label in graph
     const svg = d3.select("svg");
     const explorationState = State.getExplorationState();
-    
+
     svg.selectAll(".node")
         .filter(d => d.id === nodeId)
         .select("text")
@@ -797,4 +930,12 @@ State.subscribe('nodeTagsUpdated', ({ nodeId, tags }) => {
             }
             return label;
         });
+
+    // Update tag stats in the stats panel
+    updateTagStats();
+
+    // Re-apply tag highlight if filters are active
+    if (selectedTagFilters.size > 0) {
+        applyTagHighlight();
+    }
 });
