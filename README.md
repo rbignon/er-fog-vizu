@@ -4,7 +4,7 @@ An interactive web-based tool to visualize spoiler logs from the [Fog Gate Rando
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
-**Try it online:** [https://malenia.win/fog-vizu/](https://malenia.win/fog-vizu/)
+**Try it online:** [https://fogvizu.malenia.win](https://fogvizu.malenia.win)
 
 ## Features
 
@@ -15,29 +15,34 @@ An interactive web-based tool to visualize spoiler logs from the [Fog Gate Rando
 - **Frontier Highlighting** - See unexplored areas and their access points at a glance
 - **Item Log Integration** - Load Item Randomizer logs to see key item locations on gates
 - **Area Tagging** - Mark areas with custom tags for tracking your progress
-- **Streamer Sync** - Real-time synchronization between devices, perfect for OBS overlays
+- **Streamer Sync** - Real-time synchronization between devices via WebSocket, perfect for OBS overlays
 
 ## Quick Start
 
 ### Requirements
 
 - A modern web browser (Chrome, Firefox, Edge, Safari)
-- Python 3 (for local server)
+- Python 3.10+ (for local server)
 - A spoiler log file from Fog Gate Randomizer
 
 ### Running Locally
 
 ```bash
+# Clone the repository
+git clone https://github.com/rbignon/er-fog-vizu.git
+cd er-fog-vizu
+
+# Install dependencies
+pip install -r requirements.txt
+
 # Start the server
-./serve.sh
+python server.py
 
 # Or specify a custom port
-./serve.sh 8080
+python server.py --port 8080
 ```
 
-Open `http://localhost:8000` in your browser.
-
-> **Note:** The application uses ES6 modules, so it must be served over HTTP. Opening `index.html` directly via `file://` won't work.
+Open `http://localhost:8001` in your browser.
 
 ### Using the Visualizer
 
@@ -68,7 +73,7 @@ Perfect for streaming setups where you want the graph displayed on a separate mo
 
 The viewer URL format is:
 ```
-http://localhost:8000/?viewer=true&session=CODE
+https://fogvizu.malenia.win/?viewer=true&session=CODE
 ```
 
 In viewer mode:
@@ -76,11 +81,25 @@ In viewer mode:
 - All interactions are mirrored from the host in real-time
 - Viewport position and zoom are synchronized
 
+## Deployment
+
+### Systemd service
+
+```bash
+sudo cp fog-vizu.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fog-vizu
+```
+
+### Nginx reverse proxy
+
+Include `fog-vizu.nginx.conf` in your nginx server block. WebSocket support is configured.
+
 ## Technical Details
 
 - **Pure Frontend** - No build step required, ES6 modules run directly in browser
+- **FastAPI + WebSocket** - Python backend for real-time streamer sync
 - **D3.js** - Force-directed graph simulation for automatic layout
-- **Firebase Realtime Database** - Powers the streamer sync feature
 - **LocalStorage** - Persists exploration progress per seed
 
 ## Browser Support

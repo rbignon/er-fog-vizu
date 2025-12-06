@@ -5,7 +5,7 @@
 import * as State from './state.js';
 import * as UI from './ui.js';
 import * as Graph from './graph.js';
-import * as Firebase from './firebase.js';
+import * as Sync from './sync.js';
 
 // ============================================================
 // INITIALIZATION
@@ -13,16 +13,16 @@ import * as Firebase from './firebase.js';
 
 async function init() {
     console.log('Initializing application...');
-    
-    // Initialize Firebase
-    Firebase.initFirebase();
-    Firebase.setupViewerMode();
-    
+
+    // Initialize sync module
+    Sync.initFirebase();
+    Sync.setupViewerMode();
+
     // Initialize UI event listeners
     UI.initUI();
-    
+
     // Initialize streamer modal UI
-    Firebase.initStreamerUI();
+    Sync.initStreamerUI();
     
     // Subscribe to graph render events
     State.subscribe('graphNeedsRender', ({ preservePositions }) => {
