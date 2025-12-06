@@ -11,14 +11,13 @@ Elden Ring Fog Gate Randomizer Visualizer - a web-based tool to visualize spoile
 ```bash
 ./serve.sh              # Python HTTP server on port 8000
 ./serve.sh 8080         # Custom port
-node serve.js           # Node.js alternative
 ```
 
 Open `http://localhost:8000` in browser. No build step required - ES6 modules run directly.
 
 ## Architecture
 
-**State Management** (`js/state.js`):
+**State Management** (`src/js/state.js`):
 - Centralized state with pub/sub event bus
 - `State.subscribe('eventName', callback)` for inter-module communication
 - Setters emit events automatically (e.g., `setExplorationMode()` emits `explorationModeChanged`)

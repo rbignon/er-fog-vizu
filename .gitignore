@@ -1,2 +1,5 @@
 __pycache__
-old
+
+# Ignore spoiler logs in root (keep demo_log.txt in data/)
+/*.txt
+/*.svg
