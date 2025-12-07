@@ -314,31 +314,43 @@ export function findPathFromStart(targetNodeId) {
 
 /**
  * Follow linear path from a node (subway line behavior)
+ * In exploration mode, stops at undiscovered nodes (frontier boundary)
  */
 export function followLinearPath(startNodeId) {
     const graphData = State.getGraphData();
     if (!graphData) return { nodes: new Set([startNodeId]), links: new Set() };
-    
+
+    // In exploration mode, only traverse through discovered nodes
+    const explorationMode = State.isExplorationMode();
+    const explorationState = State.getExplorationState();
+    const canTraverse = (nodeId) => {
+        if (!explorationMode) return true;
+        return explorationState.discovered.has(nodeId);
+    };
+
     const nodeConnections = buildNodeConnectionsMap(graphData);
     const visitedNodes = new Set([startNodeId]);
     const visitedLinks = new Set();
     const queue = [startNodeId];
-    
+
     while (queue.length > 0) {
         const currentId = queue.shift();
         const conns = nodeConnections.get(currentId);
         if (!conns) continue;
-        
+
         [...conns.incoming, ...conns.outgoing].forEach(link => {
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
             const targetId = typeof link.target === 'object' ? link.target.id : link.target;
             const neighborId = sourceId === currentId ? targetId : sourceId;
-            
+
             if (visitedNodes.has(neighborId)) return;
-            
+
+            // In exploration mode, stop at undiscovered nodes
+            if (!canTraverse(neighborId)) return;
+
             visitedLinks.add(link);
             visitedNodes.add(neighborId);
-            
+
             // Continue following if not a hub
             const neighborConns = nodeConnections.get(neighborId);
             if (neighborConns && neighborConns.degree < 3) {
@@ -346,7 +358,7 @@ export function followLinearPath(startNodeId) {
             }
         });
     }
-    
+
     return { nodes: visitedNodes, links: visitedLinks };
 }
 
