@@ -66,6 +66,7 @@ export const SpoilerLogParser = {
         /\s*\(past\s/i,
         /\s*\(up\s/i,
         /\s*\(down\s/i,
+        /\s*\(backwards\s/i,
     ],
     
     shouldSkipLine(line) {
