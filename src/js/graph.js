@@ -298,8 +298,9 @@ export function renderGraph(preservePositions = false) {
         }, 2000);
     }
     
-    // Re-apply frontier highlight if active
-    if (State.isFrontierHighlightActive()) {
+    // Re-apply frontier highlight if active AND no node is selected
+    // (if a node is selected, applySelectionHighlights already handled it)
+    if (State.isFrontierHighlightActive() && !State.getSelectedNodeId() && !State.getPendingSelectionRealId()) {
         setTimeout(() => State.emit('frontierHighlightChanged', true), 100);
     }
 
@@ -685,9 +686,10 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
         tooltip.select(".undiscover-btn").on("click", function() {
             const nodeId = this.getAttribute("data-node-id");
             if (nodeId) {
+                // Store the real node ID so we can find the placeholder after re-render
+                State.setPendingSelectionRealId(nodeId);
                 Exploration.undiscoverArea(nodeId);
-                // Refresh tooltip to show updated state
-                setTimeout(refreshTooltip, 100);
+                // Graph will re-render, selection will be restored via pendingSelectionRealId
             }
         });
         
@@ -1039,9 +1041,22 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
             });
     }
 
+    // Check if we need to find a placeholder for a pending selection (after undiscover)
+    const pendingRealId = State.getPendingSelectionRealId();
+    if (pendingRealId) {
+        State.clearPendingSelectionRealId();
+        // Find the placeholder node with this realId
+        const placeholderNode = node.data().find(n => n.isPlaceholder && n.realId === pendingRealId);
+        if (placeholderNode) {
+            selectedNode = placeholderNode.id;
+            State.setSelectedNodeId(placeholderNode.id);
+            applySelectionHighlights(placeholderNode.id, placeholderNode);
+            setTimeout(() => applySelectionHighlights(placeholderNode.id, placeholderNode), 50);
+        }
+    }
     // If a node was selected, restore its highlight after a short delay
     // to ensure DOM is fully updated
-    if (selectedNode) {
+    else if (selectedNode) {
         const selectedNodeData = node.data().find(n => n.id === selectedNode);
         if (selectedNodeData) {
             // Apply immediately and also after a delay to ensure it sticks

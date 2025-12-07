@@ -23,6 +23,7 @@ const state = {
     nodePositions: new Map(),
     currentZoomTransform: null,
     selectedNodeId: null,
+    pendingSelectionRealId: null,  // Used to find placeholder after undiscover
     simulation: null,
     
     // Sync state
@@ -171,6 +172,18 @@ export function setCurrentZoomTransform(transform) {
 export function setSelectedNodeId(nodeId) {
     state.selectedNodeId = nodeId;
     emit('selectionChanged', nodeId);
+}
+
+export function getPendingSelectionRealId() {
+    return state.pendingSelectionRealId;
+}
+
+export function setPendingSelectionRealId(realId) {
+    state.pendingSelectionRealId = realId;
+}
+
+export function clearPendingSelectionRealId() {
+    state.pendingSelectionRealId = null;
 }
 
 export function setSimulation(sim) {
