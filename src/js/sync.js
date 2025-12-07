@@ -384,53 +384,100 @@ function getFullSyncState() {
     const nodePositions = State.getNodePositions();
     const explorationState = State.getExplorationState();
 
-    // Build nodes state
+    // Build nodes state from DOM (includes placeholders)
     const nodesState = {};
+    nodeElements.each(function(d) {
+        const nodeEl = d3.select(this);
+        const pos = nodePositions.get(d.id);
+
+        // For placeholders, get position from simulation data
+        const x = d.x !== undefined ? d.x : (pos ? pos.x : 0);
+        const y = d.y !== undefined ? d.y : (pos ? pos.y : 0);
+
+        const tags = explorationState?.tags?.get(d.id) || [];
+        const discovered = d.isPlaceholder ? false : (explorationState?.discovered?.has(d.id) || false);
+
+        nodesState[d.id] = {
+            x: x,
+            y: y,
+            visible: nodeEl.style("display") !== "none",
+            highlighted: nodeEl.classed("highlighted"),
+            dimmed: nodeEl.classed("dimmed"),
+            frontierHighlight: nodeEl.classed("frontier-highlight"),
+            accessHighlight: nodeEl.classed("access-highlight"),
+            tagHighlighted: nodeEl.classed("tag-highlighted"),
+            discovered: discovered,
+            tags: tags,
+            isBoss: d.isBoss || false,
+            scaling: d.scaling || null,
+            isPlaceholder: d.isPlaceholder || false,
+            realId: d.realId || null,
+            sourceNodeId: d.sourceNodeId || null
+        };
+    });
+
+    // Build links state from DOM (includes links to placeholders)
+    const linksState = {};
+    linkElements.each(function(d) {
+        const linkEl = d3.select(this);
+        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+
+        linksState[`${sourceId}->${targetId}`] = {
+            visible: linkEl.style("display") !== "none",
+            highlighted: linkEl.classed("highlighted"),
+            dimmed: linkEl.classed("dimmed"),
+            frontierHighlight: linkEl.classed("frontier-highlight"),
+            type: d.type || null,
+            oneWay: d.oneWay || false,
+            // Store original target for placeholder links
+            originalTarget: d.originalTarget || null,
+            originalSource: d.originalSource || null
+        };
+    });
+
+    // Also include original graph nodes (undiscovered ones) for viewer to rebuild
     if (graphData && graphData.nodes) {
         graphData.nodes.forEach(n => {
-            const pos = nodePositions.get(n.id);
-            const nodeEl = nodeElements.filter(d => d.id === n.id);
-            const tags = explorationState?.tags?.get(n.id) || [];
-            const discovered = explorationState?.discovered?.has(n.id) || false;
-
-            nodesState[n.id] = {
-                x: pos ? pos.x : 0,
-                y: pos ? pos.y : 0,
-                visible: !nodeEl.empty() && nodeEl.style("display") !== "none",
-                highlighted: !nodeEl.empty() && nodeEl.classed("highlighted"),
-                dimmed: !nodeEl.empty() && nodeEl.classed("dimmed"),
-                frontierHighlight: !nodeEl.empty() && nodeEl.classed("frontier-highlight"),
-                accessHighlight: !nodeEl.empty() && nodeEl.classed("access-highlight"),
-                tagHighlighted: !nodeEl.empty() && nodeEl.classed("tag-highlighted"),
-                discovered: discovered,
-                tags: tags,
-                isBoss: n.isBoss || false,
-                scaling: n.scaling || null
-            };
+            if (!nodesState[n.id]) {
+                nodesState[n.id] = {
+                    x: 0,
+                    y: 0,
+                    visible: false,
+                    highlighted: false,
+                    dimmed: false,
+                    frontierHighlight: false,
+                    accessHighlight: false,
+                    tagHighlighted: false,
+                    discovered: false,
+                    tags: [],
+                    isBoss: n.isBoss || false,
+                    scaling: n.scaling || null,
+                    isPlaceholder: false,
+                    isOriginalNode: true
+                };
+            }
         });
     }
 
-    // Build links state
-    const linksState = {};
+    // Also include original graph links for viewer to rebuild the graph
     if (graphData && graphData.links) {
         graphData.links.forEach(l => {
             const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
             const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-
-            const linkEl = linkElements.filter(d => {
-                const dSourceId = typeof d.source === 'object' ? d.source.id : d.source;
-                const dTargetId = typeof d.target === 'object' ? d.target.id : d.target;
-                return dSourceId === sourceId && dTargetId === targetId;
-            });
-
-            linksState[`${sourceId}->${targetId}`] = {
-                visible: !linkEl.empty() && linkEl.style("display") !== "none",
-                highlighted: !linkEl.empty() && linkEl.classed("highlighted"),
-                dimmed: !linkEl.empty() && linkEl.classed("dimmed"),
-                frontierHighlight: !linkEl.empty() && linkEl.classed("frontier-highlight"),
-                type: l.type || null,
-                oneWay: l.oneWay || false
-            };
+            const key = `${sourceId}->${targetId}`;
+            // Only add if not already present (don't overwrite visual state)
+            if (!linksState[key]) {
+                linksState[key] = {
+                    visible: false,
+                    highlighted: false,
+                    dimmed: false,
+                    frontierHighlight: false,
+                    type: l.type || null,
+                    oneWay: l.oneWay || false,
+                    isOriginalLink: true
+                };
+            }
         });
     }
 
@@ -478,10 +525,20 @@ function applySessionData(data) {
 function buildGraphFromSessionData(data) {
     console.log("Building graph from session data...");
 
+    // Set exploration mode FIRST so renderGraph creates placeholders correctly
+    if (data.explorationMode !== undefined) {
+        State.setExplorationMode(data.explorationMode);
+    }
+
     const nodes = [];
     const explorationState = { discovered: new Set(), tags: new Map() };
 
     for (const [id, nodeState] of Object.entries(data.nodes)) {
+        // Skip placeholder nodes - they will be recreated by renderGraph
+        if (nodeState.isPlaceholder) {
+            continue;
+        }
+
         nodes.push({
             id: id,
             isBoss: nodeState.isBoss || false,
@@ -501,9 +558,20 @@ function buildGraphFromSessionData(data) {
     }
 
     const links = [];
+    const seenLinks = new Set();
     if (data.links) {
         for (const [linkKey, linkState] of Object.entries(data.links)) {
             const [source, target] = linkKey.split('->');
+
+            // Skip links involving placeholders - they will be recreated by renderGraph
+            if (source.startsWith('???_') || target.startsWith('???_')) {
+                continue;
+            }
+
+            // Avoid duplicates
+            if (seenLinks.has(linkKey)) continue;
+            seenLinks.add(linkKey);
+
             links.push({
                 source: source,
                 target: target,
@@ -516,6 +584,11 @@ function buildGraphFromSessionData(data) {
     const graphData = { nodes, links, metadata: {} };
     State.setGraphData(graphData);
     State.setExplorationState(explorationState);
+
+    // Set frontier highlight state so it persists
+    if (data.frontierHighlightActive !== undefined) {
+        State.setFrontierHighlightActive(data.frontierHighlightActive);
+    }
 
     const uploadScreen = document.getElementById('upload-screen');
     if (uploadScreen) {
@@ -617,9 +690,17 @@ function applyVisualState(data) {
         }
     }
 
-    // Second pass: apply states to existing simulation nodes
+    // Second pass: apply states to existing simulation nodes and detect missing nodes
+    let hasMissingNodes = false;
     for (const [id, nodeState] of Object.entries(data.nodes)) {
         const simNode = d3Nodes.find(n => n.id === id);
+
+        // Check if this node exists in the viewer's DOM
+        if (!simNode && (nodeState.highlighted || nodeState.frontierHighlight || id === data.selectedNodeId)) {
+            // A highlighted node doesn't exist in viewer - need to re-render
+            hasMissingNodes = true;
+        }
+
         if (simNode && nodeState.x !== undefined && nodeState.y !== undefined &&
             !isNaN(nodeState.x) && !isNaN(nodeState.y) && isFinite(nodeState.x) && isFinite(nodeState.y)) {
             if (Math.abs(simNode.x - nodeState.x) > 1 || Math.abs(simNode.y - nodeState.y) > 1) {
@@ -631,7 +712,7 @@ function applyVisualState(data) {
             }
         }
 
-        if (explorationState) {
+        if (explorationState && !nodeState.isPlaceholder) {
             const wasDiscovered = explorationState.discovered.has(id);
             const isDiscovered = nodeState.discovered || false;
             if (wasDiscovered !== isDiscovered) {
@@ -654,6 +735,11 @@ function applyVisualState(data) {
                 }
             }
         }
+    }
+
+    // If we have missing highlighted nodes, force a re-render
+    if (hasMissingNodes && !explorationChanged) {
+        explorationChanged = true;
     }
 
     if (explorationChanged) {
@@ -699,27 +785,30 @@ function applyVisualClasses(data) {
     const selectedId = data.selectedNodeId || null;
 
     d3.selectAll(".node").each(function(d) {
-        const nodeState = data.nodes[d.id];
+        const nodeState = data.nodes?.[d.id];
+        const node = d3.select(this);
+
         if (nodeState) {
-            const node = d3.select(this);
             node.classed("highlighted", nodeState.highlighted || false)
                 .classed("dimmed", nodeState.dimmed || false)
                 .classed("frontier-highlight", nodeState.frontierHighlight || false)
                 .classed("access-highlight", nodeState.accessHighlight || false)
-                .classed("tag-highlighted", nodeState.tagHighlighted || false)
-                .classed("viewer-selected", d.id === selectedId);
+                .classed("tag-highlighted", nodeState.tagHighlighted || false);
+        }
 
-            if (d.id === selectedId && isViewerMode) {
-                if (node.select(".selection-ring").empty()) {
-                    const circle = node.select("circle");
-                    const r = parseFloat(circle.attr("r")) || 7;
-                    node.insert("circle", "circle")
-                        .attr("class", "selection-ring")
-                        .attr("r", r + 8);
-                }
-            } else {
-                node.select(".selection-ring").remove();
+        // Handle selection separately - apply even if nodeState doesn't exist
+        node.classed("viewer-selected", d.id === selectedId);
+
+        if (d.id === selectedId && isViewerMode) {
+            if (node.select(".selection-ring").empty()) {
+                const circle = node.select("circle");
+                const r = parseFloat(circle.attr("r")) || 7;
+                node.insert("circle", "circle")
+                    .attr("class", "selection-ring")
+                    .attr("r", r + 8);
             }
+        } else {
+            node.select(".selection-ring").remove();
         }
     });
 

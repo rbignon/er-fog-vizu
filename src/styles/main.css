@@ -1004,6 +1004,19 @@ marker path {
     /* Animation disabled for performance - was causing constant repaints */
 }
 
+.node.undiscovered.highlighted circle {
+    fill: #3a3530 !important;
+    stroke: #d4c4a8 !important;
+    stroke-width: 2.5px;
+    stroke-dasharray: 3 2;
+    filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.5));
+}
+
+.node.undiscovered.highlighted text {
+    fill: #d4c4a8 !important;
+    font-style: italic;
+}
+
 /* Tags */
 .node-tags {
     display: flex;

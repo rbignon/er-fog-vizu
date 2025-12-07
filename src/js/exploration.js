@@ -54,15 +54,67 @@ export function discoverArea(areaId) {
 }
 
 /**
- * Undiscover an area (except starting area)
+ * Undiscover an area and all areas that become unreachable (except starting area)
  */
 export function undiscoverArea(areaId) {
     if (areaId === State.START_NODE) return;
-    
+
     State.saveAllNodePositions();
+
+    const graphData = State.getGraphData();
+    const explorationState = State.getExplorationState();
+    if (!graphData || !explorationState) return;
+
+    // First, undiscover the requested node
     State.undiscoverNode(areaId);
+
+    // Find all nodes that are no longer reachable from START_NODE
+    const reachableFromStart = findReachableNodes(State.START_NODE, graphData.links, explorationState.discovered);
+
+    // Undiscover all nodes that are no longer reachable
+    const toUndiscover = [];
+    explorationState.discovered.forEach(nodeId => {
+        if (!reachableFromStart.has(nodeId)) {
+            toUndiscover.push(nodeId);
+        }
+    });
+
+    toUndiscover.forEach(nodeId => {
+        State.undiscoverNode(nodeId);
+    });
+
     State.saveExplorationToStorage();
     State.emit('graphNeedsRender', { preservePositions: true });
+}
+
+/**
+ * Find all nodes reachable from a starting node through discovered nodes
+ */
+function findReachableNodes(startNodeId, links, discoveredSet) {
+    const reachable = new Set([startNodeId]);
+    const queue = [startNodeId];
+
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+
+        links.forEach(link => {
+            const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+            const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+            // Can go FROM currentId TO target (following link direction)
+            if (sourceId === currentId && discoveredSet.has(targetId) && !reachable.has(targetId)) {
+                reachable.add(targetId);
+                queue.push(targetId);
+            }
+            // Can go FROM target TO currentId only if link is NOT one-way
+            if (targetId === currentId && !link.oneWay && discoveredSet.has(sourceId) && !reachable.has(sourceId)) {
+                reachable.add(sourceId);
+                queue.push(sourceId);
+            }
+        });
+    }
+
+    return reachable;
 }
 
 /**

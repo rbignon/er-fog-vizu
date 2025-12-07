@@ -341,25 +341,25 @@ export function highlightFrontier() {
         }
     });
 
-    // Apply highlights - placeholder nodes (isPlaceholder) are frontier nodes
+    // Apply frontier highlights - only when nothing is selected
+    // placeholder nodes (isPlaceholder) are frontier nodes
     nodes.classed("frontier-highlight", d => d.isPlaceholder === true)
          .classed("access-highlight", d => accessNodes.has(d.id))
+         .classed("highlighted", false)
          .classed("dimmed", d => !d.isPlaceholder && !accessNodes.has(d.id));
 
     // Links to placeholder nodes are frontier links
     links.classed("frontier-highlight", l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-        // A link is frontier if it connects to a placeholder (starts with ???_)
         return sourceId.startsWith('???_') || targetId.startsWith('???_');
     })
+    .classed("highlighted", false)
     .classed("dimmed", l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-        // Dim links that don't connect to placeholders and don't connect access nodes
         const isToPlaceholder = sourceId.startsWith('???_') || targetId.startsWith('???_');
-        const connectsAccessNode = accessNodes.has(sourceId) || accessNodes.has(targetId);
-        return !isToPlaceholder && !connectsAccessNode;
+        return !isToPlaceholder;
     });
 }
 
@@ -497,7 +497,21 @@ export function initUI() {
     State.subscribe('explorationReset', () => {
         State.emit('graphNeedsRender', { preservePositions: false });
     });
-    
+
+    // Re-apply frontier highlight after graph render if it's active AND nothing is selected
+    State.subscribe('graphRenderCompleted', () => {
+        if (State.isFrontierHighlightActive() && !State.getSelectedNodeId() && (!State.isSyncConnected() || State.isStreamerHost())) {
+            highlightFrontier();
+        }
+    });
+
+    // Re-apply frontier highlight when selection is cleared
+    State.subscribe('restoreFrontierHighlight', () => {
+        if (State.isFrontierHighlightActive() && (!State.isSyncConnected() || State.isStreamerHost())) {
+            highlightFrontier();
+        }
+    });
+
     // Update UI based on frontier state changes
     // Only recalculate frontier if we're the host (not viewer)
     State.subscribe('frontierHighlightChanged', (active) => {
