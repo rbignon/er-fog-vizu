@@ -21,8 +21,8 @@ async function init() {
     // Initialize UI event listeners
     UI.initUI();
 
-    // Initialize streamer modal UI
-    Sync.initStreamerUI();
+    // Initialize stream modal UI
+    Sync.initStreamUI();
     
     // Subscribe to graph render events
     State.subscribe('graphNeedsRender', ({ preservePositions }) => {

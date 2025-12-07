@@ -60,7 +60,7 @@
                     <div id="search-dropdown"></div>
                 </div>
                 <div id="controls-right">
-                    <button id="streamer-mode-btn" title="Sync with another device for streaming">Sync</button>
+                    <button id="stream-btn" title="Stream your exploration to OBS">Stream</button>
                     <button id="add-item-log-btn" title="Load Item Randomizer log to see key item locations">Add Item Log</button>
                     <button id="new-file-btn">Load New File</button>
                 </div>
@@ -148,43 +148,42 @@
         </div>
     </div>
 
-    <!-- Streamer Sync Modal -->
-    <div id="streamer-modal">
-        <div class="streamer-modal-content">
-            <button id="close-streamer-modal" class="modal-close-btn">&times;</button>
-            <h3>🎬 Streamer Sync</h3>
-            <div id="streamer-not-connected">
-                <p>Synchronize the graph between two devices in real-time. Perfect for streaming overlays!</p>
-                <div class="streamer-modal-buttons">
-                    <button id="create-session-btn" class="btn-primary">Create Session</button>
-                    <button id="join-session-btn" class="btn-secondary">Join Session</button>
-                </div>
-                <div id="join-form" class="hidden">
-                    <input type="text" class="session-code-input" id="join-code-input" placeholder="Enter code" maxlength="8">
-                    <div class="streamer-modal-buttons">
-                        <button id="join-confirm-btn" class="btn-primary">Connect</button>
-                        <button id="join-cancel-btn" class="btn-secondary">Cancel</button>
-                    </div>
+    <!-- Stream to OBS Modal -->
+    <div id="stream-modal">
+        <div class="stream-modal-content">
+            <button id="close-stream-modal" class="modal-close-btn">&times;</button>
+            <h3>Stream to OBS</h3>
+            <div id="stream-not-connected">
+                <p>Share your exploration in real-time with your stream audience.</p>
+                <div class="stream-modal-buttons">
+                    <button id="start-session-btn" class="btn-primary">Start Session</button>
+                    <button id="close-not-connected-btn" class="btn-secondary">Close</button>
                 </div>
             </div>
-            <div id="streamer-connected" class="hidden">
-                <div class="session-code-display">
-                    <div class="code" id="session-code-display">----</div>
-                    <p class="session-code-hint">Share this code with the other device</p>
-                </div>
-                <div class="viewer-url-display">
-                    <label>Viewer URL (for OBS):</label>
+            <div id="stream-connected" class="hidden">
+                <div class="stream-url-section">
+                    <label>Browser Source URL:</label>
                     <div class="url-input-group">
-                        <input type="text" id="viewer-url-input" readonly>
-                        <button id="copy-url-btn" class="btn-secondary btn-copy">📋 Copy</button>
+                        <input type="text" id="stream-url-input" readonly>
+                        <button id="copy-url-btn" class="btn-secondary btn-copy">Copy</button>
                     </div>
+                </div>
+                <div class="obs-instructions">
+                    <div class="obs-instructions-title">How to add to OBS</div>
+                    <ol>
+                        <li>In OBS, click <strong>+</strong> under Sources</li>
+                        <li>Select <strong>Browser</strong></li>
+                        <li>Paste the URL above</li>
+                        <li>Set dimensions to <strong>1920 x 1080</strong> (or your canvas size)</li>
+                    </ol>
                 </div>
                 <div class="sync-status" id="sync-status">
                     <span class="sync-dot"></span>
-                    <span>Connected</span>
+                    <span>Session active</span>
                 </div>
-                <div class="streamer-modal-buttons spaced">
-                    <button id="disconnect-btn" class="btn-disconnect">Disconnect</button>
+                <div class="stream-modal-buttons">
+                    <button id="end-session-btn" class="btn-disconnect">End Session</button>
+                    <button id="close-connected-btn" class="btn-secondary">Close</button>
                 </div>
             </div>
         </div>

@@ -780,19 +780,21 @@ function updatePositionsInDOM(d3Nodes) {
 function showConnectedUI() {
     const sessionCode = State.getSessionCode();
 
-    document.getElementById('session-code-display').textContent = sessionCode;
-    document.getElementById('streamer-not-connected').classList.add('hidden');
-    document.getElementById('streamer-connected').classList.remove('hidden');
-    document.getElementById('streamer-mode-btn').classList.add('connected');
+    document.getElementById('stream-not-connected').classList.add('hidden');
+    document.getElementById('stream-connected').classList.remove('hidden');
+
+    const streamBtn = document.getElementById('stream-btn');
+    if (streamBtn) {
+        streamBtn.classList.add('active');
+    }
 
     const viewerUrl = window.location.origin + window.location.pathname +
                      '?viewer=true&session=' + sessionCode;
-    document.getElementById('viewer-url-input').value = viewerUrl;
+    document.getElementById('stream-url-input').value = viewerUrl;
 
     const syncStatus = document.getElementById('sync-status');
     syncStatus.classList.remove('disconnected');
-    syncStatus.querySelector('span:last-child').textContent = State.isStreamerHost() ?
-        'Connected as host' : 'Connected as viewer';
+    syncStatus.querySelector('span:last-child').textContent = 'Session active';
 }
 
 function updateSyncStatus(message) {
@@ -806,83 +808,54 @@ function updateSyncStatus(message) {
 }
 
 function showDisconnectedUI() {
-    document.getElementById('streamer-not-connected').classList.remove('hidden');
-    document.getElementById('streamer-connected').classList.add('hidden');
-    document.getElementById('join-form').classList.add('hidden');
-    document.getElementById('streamer-mode-btn').classList.remove('connected');
+    document.getElementById('stream-not-connected').classList.remove('hidden');
+    document.getElementById('stream-connected').classList.add('hidden');
+
+    const streamBtn = document.getElementById('stream-btn');
+    if (streamBtn) {
+        streamBtn.classList.remove('active');
+    }
 }
 
 // =============================================================================
 // UI Event Listeners
 // =============================================================================
 
-export function initStreamerUI() {
-    const streamerModal = document.getElementById('streamer-modal');
-    if (!streamerModal) {
-        setTimeout(initStreamerUI, 50);
+export function initStreamUI() {
+    const streamModal = document.getElementById('stream-modal');
+    if (!streamModal) {
+        setTimeout(initStreamUI, 50);
         return;
     }
 
-    const streamerModeBtn = document.getElementById('streamer-mode-btn');
-    if (streamerModeBtn) {
-        streamerModeBtn.addEventListener('click', () => {
-            streamerModal.classList.add('visible');
+    const streamBtn = document.getElementById('stream-btn');
+    if (streamBtn) {
+        streamBtn.addEventListener('click', () => {
+            streamModal.classList.add('visible');
         });
     }
 
-    const closeModalBtn = document.getElementById('close-streamer-modal');
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', () => {
-            streamerModal.classList.remove('visible');
-        });
+    // All close buttons
+    const closeModal = () => streamModal.classList.remove('visible');
+
+    document.getElementById('close-stream-modal')?.addEventListener('click', closeModal);
+    document.getElementById('close-not-connected-btn')?.addEventListener('click', closeModal);
+    document.getElementById('close-connected-btn')?.addEventListener('click', closeModal);
+
+    const startSessionBtn = document.getElementById('start-session-btn');
+    if (startSessionBtn) {
+        startSessionBtn.addEventListener('click', createSession);
     }
 
-    const createSessionBtn = document.getElementById('create-session-btn');
-    if (createSessionBtn) {
-        createSessionBtn.addEventListener('click', createSession);
-    }
-
-    const joinSessionBtn = document.getElementById('join-session-btn');
-    if (joinSessionBtn) {
-        joinSessionBtn.addEventListener('click', () => {
-            document.getElementById('join-form').classList.remove('hidden');
-            document.getElementById('join-code-input').focus();
-        });
-    }
-
-    const joinCancelBtn = document.getElementById('join-cancel-btn');
-    if (joinCancelBtn) {
-        joinCancelBtn.addEventListener('click', () => {
-            document.getElementById('join-form').classList.add('hidden');
-        });
-    }
-
-    const joinConfirmBtn = document.getElementById('join-confirm-btn');
-    if (joinConfirmBtn) {
-        joinConfirmBtn.addEventListener('click', () => {
-            const code = document.getElementById('join-code-input').value;
-            if (code.length >= 4) joinSession(code);
-        });
-    }
-
-    const joinCodeInput = document.getElementById('join-code-input');
-    if (joinCodeInput) {
-        joinCodeInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && e.target.value.length >= 4) {
-                joinSession(e.target.value);
-            }
-        });
-    }
-
-    const disconnectBtn = document.getElementById('disconnect-btn');
-    if (disconnectBtn) {
-        disconnectBtn.addEventListener('click', disconnectSession);
+    const endSessionBtn = document.getElementById('end-session-btn');
+    if (endSessionBtn) {
+        endSessionBtn.addEventListener('click', disconnectSession);
     }
 
     const copyUrlBtn = document.getElementById('copy-url-btn');
     if (copyUrlBtn) {
         copyUrlBtn.addEventListener('click', () => {
-            const urlInput = document.getElementById('viewer-url-input');
+            const urlInput = document.getElementById('stream-url-input');
             if (urlInput) {
                 urlInput.select();
                 navigator.clipboard.writeText(urlInput.value).then(() => {
@@ -894,9 +867,9 @@ export function initStreamerUI() {
         });
     }
 
-    streamerModal.addEventListener('click', (e) => {
-        if (e.target.id === 'streamer-modal') {
-            streamerModal.classList.remove('visible');
+    streamModal.addEventListener('click', (e) => {
+        if (e.target.id === 'stream-modal') {
+            streamModal.classList.remove('visible');
         }
     });
 }

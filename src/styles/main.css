@@ -308,8 +308,8 @@ body::before {
     color: #ffcccc;
 }
 
-/* Streamer mode button */
-#streamer-mode-btn {
+/* Stream button */
+#stream-btn {
     background: rgba(145, 70, 180, 0.3);
     border: 1px solid #9046b4;
     color: #d0a0e8;
@@ -318,23 +318,23 @@ body::before {
     cursor: pointer;
     font-size: 0.85rem;
     transition: all 0.2s;
+    position: relative;
 }
 
-#streamer-mode-btn:hover,
-#streamer-mode-btn.active {
+#stream-btn:hover {
     background: rgba(145, 70, 180, 0.5);
     border-color: #b060d4;
     color: #e8c0ff;
 }
 
-#streamer-mode-btn.connected {
+#stream-btn.active {
     background: rgba(70, 180, 100, 0.3);
     border-color: #46b464;
     color: #a0e8b0;
 }
 
-/* Streamer modal */
-#streamer-modal {
+/* Stream modal */
+#stream-modal {
     display: none;
     position: fixed;
     top: 0;
@@ -347,11 +347,11 @@ body::before {
     align-items: center;
 }
 
-#streamer-modal.visible {
+#stream-modal.visible {
     display: flex;
 }
 
-.streamer-modal-content {
+.stream-modal-content {
     position: relative;
     background: linear-gradient(145deg, #1a1815 0%, #12100d 100%);
     border: 1px solid #3a3530;
@@ -380,62 +380,38 @@ body::before {
     color: #c9a227;
 }
 
-.streamer-modal-content h3 {
+.stream-modal-content h3 {
     font-family: 'Cinzel', serif;
     color: #c9a227;
     margin-bottom: 16px;
     font-size: 1.3rem;
 }
 
-.streamer-modal-content p {
+.stream-modal-content p {
     color: #9a8d75;
     margin-bottom: 16px;
     line-height: 1.5;
 }
 
-.session-code-display {
-    background: #0a0908;
-    border: 2px solid #c9a227;
-    border-radius: 8px;
-    padding: 16px;
-    text-align: center;
-    margin-bottom: 16px;
+.stream-url-section {
+    margin-bottom: 20px;
 }
 
-.session-code-display .code {
-    font-family: 'Courier New', monospace;
-    font-size: 2rem;
-    color: #c9a227;
-    letter-spacing: 4px;
-    font-weight: bold;
+.stream-url-section label {
+    display: block;
+    color: #9a8d75;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
 }
 
-.session-code-input {
-    width: 100%;
-    padding: 12px;
-    background: #0a0908;
-    border: 1px solid #3a3530;
-    border-radius: 6px;
-    color: #c4b998;
-    font-family: 'Courier New', monospace;
-    font-size: 1.2rem;
-    text-align: center;
-    letter-spacing: 2px;
-    margin-bottom: 16px;
-}
-
-.session-code-input:focus {
-    outline: none;
-    border-color: #c9a227;
-}
-
-.streamer-modal-buttons {
+.stream-modal-buttons {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    margin-top: 16px;
 }
 
-.streamer-modal-buttons button {
+.stream-modal-buttons button {
     flex: 1;
     min-width: 120px;
     padding: 12px;
@@ -1398,26 +1374,15 @@ marker path {
     display: none !important;
 }
 
-/* Viewer URL display in streamer modal */
-.viewer-url-display {
-    margin-bottom: 16px;
-}
-
-.viewer-url-display label {
-    font-size: 0.8rem;
-    color: #6a5a4a;
-    display: block;
-    margin-bottom: 6px;
-}
-
-.viewer-url-display .url-input-group {
+/* URL input group in stream modal */
+.url-input-group {
     display: flex;
     gap: 8px;
 }
 
-.viewer-url-display input[type="text"] {
+.url-input-group input[type="text"] {
     flex: 1;
-    padding: 8px;
+    padding: 8px 10px;
     background: #0a0908;
     border: 1px solid #3a3530;
     border-radius: 4px;
@@ -1426,26 +1391,54 @@ marker path {
     font-family: monospace;
 }
 
-.viewer-url-display .btn-copy {
+.url-input-group .btn-copy {
     padding: 8px 12px;
     white-space: nowrap;
 }
 
-/* Session code hint */
-.session-code-hint {
-    font-size: 0.8rem;
-    color: #6a5a4a;
-    margin-top: 8px;
+/* OBS instructions */
+.obs-instructions {
+    background: rgba(201, 162, 39, 0.08);
+    border: 1px solid rgba(201, 162, 39, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
 }
 
-/* Streamer modal buttons spacing */
-.streamer-modal-buttons.spaced {
-    margin-top: 16px;
+.obs-instructions-title {
+    font-family: 'Cinzel', serif;
+    color: #c9a227;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
 }
 
-/* Join form spacing */
-#join-form {
-    margin-top: 16px;
+.obs-instructions ol {
+    margin: 0;
+    padding-left: 20px;
+    color: #9a8d75;
+    font-size: 0.85rem;
+    line-height: 1.8;
+}
+
+.obs-instructions li {
+    margin-bottom: 4px;
+}
+
+.obs-instructions strong {
+    color: #c4b998;
+}
+
+/* Stream button active indicator (green dot) */
+#stream-btn.active::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    background: #46b464;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
 }
 
 /* Stats */
@@ -1569,7 +1562,7 @@ marker path {
     #new-file-btn,
     #add-item-log-btn,
     #reset-exploration-btn,
-    #streamer-mode-btn {
+    #stream-btn {
         display: none !important;
     }
     
