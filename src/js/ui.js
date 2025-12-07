@@ -505,9 +505,9 @@ export function initUI() {
             frontierCheckbox.checked = active;
         }
 
-        // Only apply highlight changes if we're the host or not connected to Firebase
+        // Only apply highlight changes if we're the host or not connected
         // Viewers receive visual classes directly from host via applyVisualClasses()
-        if (!State.isFirebaseConnected() || State.isStreamerHost()) {
+        if (!State.isSyncConnected() || State.isStreamerHost()) {
             if (active) {
                 highlightFrontier();
             } else {

@@ -14,8 +14,10 @@ Usage:
 """
 
 import argparse
+import asyncio
 import random
 import string
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -23,6 +25,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="Fog Gate Sync Server")
+
+# How long to keep orphan sessions (seconds)
+ORPHAN_SESSION_TTL = 300  # 5 minutes
 
 
 # =============================================================================
@@ -35,6 +40,7 @@ class Session:
     host: Optional[WebSocket] = None
     viewers: list[WebSocket] = field(default_factory=list)
     state: dict = field(default_factory=dict)
+    orphaned_at: Optional[float] = None  # Timestamp when host disconnected
 
 
 sessions: dict[str, Session] = {}
@@ -48,21 +54,54 @@ def generate_code() -> str:
             return code
 
 
+async def cleanup_orphan_sessions():
+    """Background task to clean up expired orphan sessions."""
+    while True:
+        await asyncio.sleep(60)  # Check every minute
+        now = time.time()
+        expired = [
+            code for code, session in sessions.items()
+            if session.orphaned_at and (now - session.orphaned_at) > ORPHAN_SESSION_TTL
+        ]
+        for code in expired:
+            session = sessions.pop(code, None)
+            if session:
+                # Notify remaining viewers
+                for viewer in session.viewers:
+                    try:
+                        await viewer.send_json({"type": "session_expired"})
+                        await viewer.close()
+                    except Exception:
+                        pass
+
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(cleanup_orphan_sessions())
+
+
 # =============================================================================
 # WebSocket Handlers
 # =============================================================================
 
-@app.websocket("/ws/host")
-async def host_connect(websocket: WebSocket):
-    """Host creates a new session and broadcasts state updates to viewers."""
-    await websocket.accept()
+async def handle_host_session(websocket: WebSocket, session: Session, is_resume: bool):
+    """Common handler for host connections (new or resumed)."""
+    session.host = websocket
+    session.orphaned_at = None  # Clear orphan status
 
-    code = generate_code()
-    session = Session(code=code, host=websocket)
-    sessions[code] = session
+    # Send confirmation to host
+    await websocket.send_json({
+        "type": "session_resumed" if is_resume else "session_created",
+        "code": session.code
+    })
 
-    # Send session code to host
-    await websocket.send_json({"type": "session_created", "code": code})
+    # If resuming, notify viewers that host is back
+    if is_resume:
+        for viewer in session.viewers:
+            try:
+                await viewer.send_json({"type": "host_reconnected"})
+            except Exception:
+                pass
 
     try:
         while True:
@@ -88,16 +127,54 @@ async def host_connect(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        # Clean up session when host disconnects
-        if code in sessions:
-            # Notify viewers that host disconnected
-            for viewer in session.viewers:
-                try:
-                    await viewer.send_json({"type": "host_disconnected"})
-                    await viewer.close()
-                except Exception:
-                    pass
-            del sessions[code]
+        # Mark session as orphaned instead of deleting
+        session.host = None
+        session.orphaned_at = time.time()
+
+        # Notify viewers that host disconnected (but session still alive)
+        for viewer in session.viewers:
+            try:
+                await viewer.send_json({"type": "host_disconnected"})
+            except Exception:
+                pass
+
+
+@app.websocket("/ws/host")
+async def host_connect(websocket: WebSocket):
+    """Host creates a new session."""
+    await websocket.accept()
+
+    code = generate_code()
+    session = Session(code=code)
+    sessions[code] = session
+
+    await handle_host_session(websocket, session, is_resume=False)
+
+
+@app.websocket("/ws/host/{code}")
+async def host_resume(websocket: WebSocket, code: str):
+    """Host resumes an existing session or recreates it with the same code."""
+    code = code.upper()
+
+    if code not in sessions:
+        # Session doesn't exist (server restarted) - recreate with same code
+        await websocket.accept()
+        session = Session(code=code)
+        sessions[code] = session
+        await handle_host_session(websocket, session, is_resume=True)
+        return
+
+    session = sessions[code]
+
+    # Check if session already has an active host
+    if session.host is not None:
+        await websocket.accept()
+        await websocket.send_json({"type": "error", "message": "Session already has a host"})
+        await websocket.close()
+        return
+
+    await websocket.accept()
+    await handle_host_session(websocket, session, is_resume=True)
 
 
 @app.websocket("/ws/viewer/{code}")
@@ -118,7 +195,8 @@ async def viewer_connect(websocket: WebSocket, code: str):
     # Send current state immediately
     await websocket.send_json({
         "type": "connected",
-        "state": session.state
+        "state": session.state,
+        "host_connected": session.host is not None
     })
 
     try:
@@ -139,7 +217,9 @@ async def viewer_connect(websocket: WebSocket, code: str):
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "sessions": len(sessions)}
+    active = sum(1 for s in sessions.values() if s.host is not None)
+    orphaned = len(sessions) - active
+    return {"status": "ok", "sessions": len(sessions), "active": active, "orphaned": orphaned}
 
 
 # Serve static files from src/

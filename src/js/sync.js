@@ -1,5 +1,5 @@
 // ============================================================
-// SYNC - WebSocket-based streamer sync (replaces Firebase)
+// SYNC - WebSocket-based streamer sync
 // ============================================================
 
 import * as State from './state.js';
@@ -16,11 +16,16 @@ function getWsUrl() {
 
 let ws = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_DURATION = 5 * 60 * 1000;  // 5 minutes total
+const RECONNECT_BASE_DELAY = 1000;
+const RECONNECT_MAX_DELAY = 30000;  // Cap at 30 seconds between attempts
+let reconnectStartTime = null;
+let isReconnecting = false;
 let syncThrottle = null;
 let lastSyncedViewport = null;
 let isRenderingGraph = false;
 let isSyncing = false;
+let currentSessionCode = null;  // Track session code for reconnection
 
 // Check for viewer mode in URL
 const urlParams = new URLSearchParams(window.location.search);
@@ -31,8 +36,8 @@ const urlSessionCode = urlParams.get('session');
 // Initialization
 // =============================================================================
 
-export function initFirebase() {
-    // Compatibility alias - always returns true since no external service needed
+export function initSync() {
+    // No-op - WebSocket connections are created on demand
     return true;
 }
 
@@ -75,28 +80,71 @@ export async function createSession() {
             const data = JSON.parse(event.data);
 
             if (data.type === 'session_created') {
-                State.setFirebaseState(true, true, data.code);
+                currentSessionCode = data.code;
+                State.setSyncState(true, true, data.code);
                 showConnectedUI();
                 console.log("Session created:", data.code);
                 resolve(data.code);
             }
         };
 
-        ws.onerror = (error) => {
-            console.error("WebSocket error:", error);
-            reject(error);
+        ws.onerror = () => {
+            reject(new Error("Connection failed"));
         };
 
         ws.onclose = () => {
-            console.log("WebSocket closed");
-            if (State.isFirebaseConnected()) {
+            if (State.isSyncConnected()) {
                 handleDisconnect();
             }
         };
     });
 }
 
-export async function joinSession(code) {
+async function resumeHostSession(code) {
+    return new Promise((resolve, reject) => {
+        const wsUrl = getWsUrl();
+        ws = new WebSocket(`${wsUrl}/ws/host/${code}`);
+
+        ws.onopen = () => {
+            console.log("WebSocket reconnecting as host...");
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'error') {
+                console.log("Failed to resume session:", data.message);
+                ws.close();
+                reject(new Error(data.message));
+                return;
+            }
+
+            if (data.type === 'session_resumed') {
+                reconnectAttempts = 0;
+                currentSessionCode = data.code;
+                State.setSyncState(true, true, data.code);
+                showConnectedUI();
+                updateSyncStatus("Reconnected");
+                console.log("Session resumed:", data.code);
+                // Send current state immediately after resume
+                setTimeout(() => syncState(), 100);
+                resolve(data.code);
+            }
+        };
+
+        ws.onerror = () => {
+            reject(new Error("Connection failed"));
+        };
+
+        ws.onclose = () => {
+            if (State.isSyncConnected()) {
+                handleDisconnect();
+            }
+        };
+    });
+}
+
+export async function joinSession(code, isReconnect = false) {
     code = code.toUpperCase().trim();
 
     return new Promise((resolve, reject) => {
@@ -112,15 +160,27 @@ export async function joinSession(code) {
             const data = JSON.parse(event.data);
 
             if (data.type === 'error') {
-                alert(data.message || "Failed to join session");
-                ws.close();
-                reject(new Error(data.message));
+                if (!isReconnect) {
+                    alert(data.message || "Failed to join session");
+                    ws.close();
+                    reject(new Error(data.message));
+                } else {
+                    // During reconnect, treat "session not found" as temporary
+                    // (host might not have reconnected yet after server restart)
+                    console.log("Session not found during reconnect, will retry...");
+                    ws.close();
+                    reject(new Error(data.message));
+                }
                 return;
             }
 
             if (data.type === 'connected') {
-                State.setFirebaseState(true, false, code);
+                currentSessionCode = code;
+                State.setSyncState(true, false, code);
                 showConnectedUI();
+                if (isReconnect) {
+                    updateSyncStatus(data.host_connected ? "Reconnected" : "Reconnected (host offline)");
+                }
                 if (data.state && Object.keys(data.state).length > 0) {
                     applySessionData(data.state);
                 }
@@ -132,50 +192,107 @@ export async function joinSession(code) {
             }
 
             if (data.type === 'host_disconnected') {
-                alert("Host has disconnected");
+                updateSyncStatus("Host disconnected - waiting...");
+                // Don't disconnect, just wait for host to reconnect
+            }
+
+            if (data.type === 'host_reconnected') {
+                updateSyncStatus("Host reconnected");
+            }
+
+            if (data.type === 'session_expired') {
+                alert("Session has expired");
                 disconnectSession();
             }
         };
 
-        ws.onerror = (error) => {
-            console.error("WebSocket error:", error);
-            reject(error);
+        ws.onerror = () => {
+            reject(new Error("Connection failed"));
         };
 
         ws.onclose = () => {
-            console.log("WebSocket closed");
-            if (State.isFirebaseConnected()) {
+            if (State.isSyncConnected()) {
                 handleDisconnect();
             }
         };
     });
 }
 
-function handleDisconnect() {
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && State.isFirebaseConnected()) {
-        reconnectAttempts++;
-        console.log(`Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}...`);
-        setTimeout(() => {
-            if (State.isStreamerHost()) {
-                createSession();
-            } else {
-                joinSession(State.getSessionCode());
-            }
-        }, 1000 * reconnectAttempts);
-    } else {
-        disconnectSession();
+async function handleDisconnect() {
+    // Prevent multiple concurrent reconnection attempts
+    if (isReconnecting) {
+        return;
     }
+
+    const sessionCode = currentSessionCode;
+    if (!State.isSyncConnected() || !sessionCode) {
+        return;
+    }
+
+    // Initialize reconnection timer on first attempt
+    if (reconnectStartTime === null) {
+        reconnectStartTime = Date.now();
+    }
+
+    // Check if we've exceeded the max reconnection duration
+    const elapsed = Date.now() - reconnectStartTime;
+    if (elapsed >= MAX_RECONNECT_DURATION) {
+        console.log("Max reconnect duration reached (5 minutes)");
+        reconnectStartTime = null;
+        reconnectAttempts = 0;
+        disconnectSession();
+        return;
+    }
+
+    reconnectAttempts++;
+    // Exponential backoff with cap
+    const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), RECONNECT_MAX_DELAY);
+    const remainingTime = Math.round((MAX_RECONNECT_DURATION - elapsed) / 1000);
+    console.log(`Attempting reconnect ${reconnectAttempts} in ${delay}ms (${remainingTime}s remaining)...`);
+    updateSyncStatus(`Reconnecting... (${remainingTime}s remaining)`);
+
+    isReconnecting = true;
+
+    setTimeout(async () => {
+        // Check again if we should still reconnect
+        if (!State.isSyncConnected() || currentSessionCode !== sessionCode) {
+            isReconnecting = false;
+            return;
+        }
+
+        try {
+            if (State.isStreamerHost()) {
+                await resumeHostSession(sessionCode);
+            } else {
+                await joinSession(sessionCode, true);
+            }
+            // Success - reset counters
+            reconnectStartTime = null;
+            reconnectAttempts = 0;
+        } catch {
+            // Schedule next attempt
+            isReconnecting = false;
+            handleDisconnect();
+            return;
+        }
+        isReconnecting = false;
+    }, delay);
 }
 
 export function disconnectSession() {
+    // Reset reconnection state first to prevent further attempts
+    isReconnecting = false;
+    reconnectStartTime = null;
+    reconnectAttempts = 0;
+    currentSessionCode = null;
+
     if (ws) {
         ws.close();
         ws = null;
     }
 
-    State.setFirebaseState(false, false, null);
+    State.setSyncState(false, false, null);
     lastSyncedViewport = null;
-    reconnectAttempts = 0;
 
     showDisconnectedUI();
 }
@@ -184,7 +301,7 @@ export function disconnectSession() {
 // Sync Logic
 // =============================================================================
 
-export function syncToFirebase() {
+export function syncState() {
     if (!ws || ws.readyState !== WebSocket.OPEN || !State.isStreamerHost() || isSyncing) return;
 
     // Throttle syncs to avoid flooding
@@ -205,11 +322,11 @@ export function syncToFirebase() {
     }, 50);
 }
 
-export function syncViewportToFirebase() {
+export function syncViewport() {
     if (!ws || ws.readyState !== WebSocket.OPEN || !State.isStreamerHost() || isRenderingGraph) return;
 
     // Viewport sync is handled by the general sync
-    syncToFirebase();
+    syncState();
 }
 
 // =============================================================================
@@ -641,7 +758,17 @@ function showConnectedUI() {
     const syncStatus = document.getElementById('sync-status');
     syncStatus.classList.remove('disconnected');
     syncStatus.querySelector('span:last-child').textContent = State.isStreamerHost() ?
-        'Connected as host (controlling)' : 'Connected as viewer (syncing)';
+        'Connected as host' : 'Connected as viewer';
+}
+
+function updateSyncStatus(message) {
+    const syncStatus = document.getElementById('sync-status');
+    if (syncStatus) {
+        const textSpan = syncStatus.querySelector('span:last-child');
+        if (textSpan) {
+            textSpan.textContent = message;
+        }
+    }
 }
 
 function showDisconnectedUI() {
@@ -745,77 +872,77 @@ export function initStreamerUI() {
 // =============================================================================
 
 State.subscribe('nodePositionsSaved', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        syncState();
     }
 });
 
 State.subscribe('viewportChanged', () => {
-    syncViewportToFirebase();
+    syncViewport();
 });
 
 State.subscribe('selectionChanged', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('nodeDiscovered', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        syncState();
     }
 });
 
 State.subscribe('nodeUndiscovered', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        syncState();
     }
 });
 
 State.subscribe('nodeTagsChanged', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        syncState();
     }
 });
 
 State.subscribe('nodeSelected', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('searchMatched', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('searchCleared', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('frontierHighlightChanged', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('tagFilterChanged', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 50);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 50);
     }
 });
 
 State.subscribe('explorationModeChanged', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        setTimeout(() => syncToFirebase(), 200);
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        setTimeout(() => syncState(), 200);
     }
 });
 
 State.subscribe('graphRenderCompleted', () => {
-    if (State.isFirebaseConnected() && State.isStreamerHost()) {
-        syncToFirebase();
+    if (State.isSyncConnected() && State.isStreamerHost()) {
+        syncState();
     }
 });

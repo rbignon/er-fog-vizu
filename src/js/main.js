@@ -15,7 +15,7 @@ async function init() {
     console.log('Initializing application...');
 
     // Initialize sync module
-    Sync.initFirebase();
+    Sync.initSync();
     Sync.setupViewerMode();
 
     // Initialize UI event listeners

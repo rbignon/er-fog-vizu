@@ -240,7 +240,7 @@ export function renderGraph(preservePositions = false) {
         setTimeout(() => applyTagHighlight(), 100);
     }
 
-    // Sync to Firebase after render completes (to capture restored highlights)
+    // Sync state after render completes (to capture restored highlights)
     if (preservePositions) {
         setTimeout(() => State.emit('graphRenderCompleted'), 150);
     }
@@ -353,7 +353,6 @@ function applyTagHighlight() {
         // Restore selection highlight if a node is selected
         State.emit('restoreSelectionHighlight');
 
-        // Sync to Firebase
         State.emit('tagFilterChanged');
         return;
     }
@@ -374,7 +373,6 @@ function applyTagHighlight() {
 
     links.classed("dimmed", true);
 
-    // Sync to Firebase
     State.emit('tagFilterChanged');
 }
 

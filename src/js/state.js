@@ -25,8 +25,8 @@ const state = {
     selectedNodeId: null,
     simulation: null,
     
-    // Firebase sync
-    firebaseConnected: false,
+    // Sync state
+    syncConnected: false,
     isStreamerHost: false,
     sessionCode: null
 };
@@ -111,8 +111,8 @@ export function getSimulation() {
     return state.simulation;
 }
 
-export function isFirebaseConnected() {
-    return state.firebaseConnected;
+export function isSyncConnected() {
+    return state.syncConnected;
 }
 
 export function isStreamerHost() {
@@ -177,11 +177,11 @@ export function setSimulation(sim) {
     state.simulation = sim;
 }
 
-export function setFirebaseState(connected, isHost, code) {
-    state.firebaseConnected = connected;
+export function setSyncState(connected, isHost, code) {
+    state.syncConnected = connected;
     state.isStreamerHost = isHost;
     state.sessionCode = code;
-    emit('firebaseStateChanged', { connected, isHost, code });
+    emit('syncStateChanged', { connected, isHost, code });
 }
 
 // ============================================================
