@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as State from './state.js';
+import * as Toast from './toast.js';
 
 // =============================================================================
 // Configuration
@@ -49,16 +50,24 @@ export function setupViewerMode() {
             const uploadScreen = document.getElementById('upload-screen');
             if (uploadScreen) {
                 uploadScreen.innerHTML = `
-                    <div style="text-align: center; color: #c9a227;">
-                        <h2 style="font-family: 'Cinzel', serif; margin-bottom: 20px;">Viewer Mode</h2>
-                        <p style="color: #9a8d75;">Connecting to session <strong>${urlSessionCode}</strong>...</p>
-                        <p style="color: #6a5a4a; font-size: 0.9rem; margin-top: 20px;">Waiting for graph data from host</p>
+                    <div id="viewer-status">
+                        <h2>Viewer Mode</h2>
+                        <p class="viewer-status-session">Session <strong>${urlSessionCode}</strong></p>
+                        <p class="viewer-status-message">Connecting...</p>
                     </div>
                 `;
             }
 
             setTimeout(() => joinSession(urlSessionCode), 100);
         }
+    }
+}
+
+function updateViewerStatus(message, isError = false) {
+    const statusMessage = document.querySelector('.viewer-status-message');
+    if (statusMessage) {
+        statusMessage.textContent = message;
+        statusMessage.classList.toggle('error', isError);
     }
 }
 
@@ -161,7 +170,11 @@ export async function joinSession(code, isReconnect = false) {
 
             if (data.type === 'error') {
                 if (!isReconnect) {
-                    alert(data.message || "Failed to join session");
+                    if (isViewerMode) {
+                        updateViewerStatus(data.message || "Failed to join session", true);
+                    } else {
+                        Toast.error(data.message || "Failed to join session");
+                    }
                     ws.close();
                     reject(new Error(data.message));
                 } else {
@@ -179,7 +192,12 @@ export async function joinSession(code, isReconnect = false) {
                 State.setSyncState(true, false, code);
                 showConnectedUI();
                 if (isReconnect) {
-                    updateSyncStatus(data.host_connected ? "Reconnected" : "Reconnected (host offline)");
+                    const msg = data.host_connected ? "Reconnected" : "Reconnected (host offline)";
+                    if (isViewerMode) {
+                        updateViewerStatus(msg);
+                    } else {
+                        updateSyncStatus(msg);
+                    }
                 }
                 if (data.state && Object.keys(data.state).length > 0) {
                     applySessionData(data.state);
@@ -192,16 +210,27 @@ export async function joinSession(code, isReconnect = false) {
             }
 
             if (data.type === 'host_disconnected') {
-                updateSyncStatus("Host disconnected - waiting...");
-                // Don't disconnect, just wait for host to reconnect
+                if (isViewerMode) {
+                    updateViewerStatus("Host disconnected - waiting...");
+                } else {
+                    updateSyncStatus("Host disconnected - waiting...");
+                }
             }
 
             if (data.type === 'host_reconnected') {
-                updateSyncStatus("Host reconnected");
+                if (isViewerMode) {
+                    updateViewerStatus("Host reconnected");
+                } else {
+                    updateSyncStatus("Host reconnected");
+                }
             }
 
             if (data.type === 'session_expired') {
-                alert("Session has expired");
+                if (isViewerMode) {
+                    updateViewerStatus("Session has expired", true);
+                } else {
+                    Toast.warning("Session has expired");
+                }
                 disconnectSession();
             }
         };
@@ -249,7 +278,12 @@ async function handleDisconnect() {
     const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), RECONNECT_MAX_DELAY);
     const remainingTime = Math.round((MAX_RECONNECT_DURATION - elapsed) / 1000);
     console.log(`Attempting reconnect ${reconnectAttempts} in ${delay}ms (${remainingTime}s remaining)...`);
-    updateSyncStatus(`Reconnecting... (${remainingTime}s remaining)`);
+    const reconnectMsg = `Reconnecting... (${remainingTime}s remaining)`;
+    if (isViewerMode) {
+        updateViewerStatus(reconnectMsg);
+    } else {
+        updateSyncStatus(reconnectMsg);
+    }
 
     isReconnecting = true;
 

@@ -5,6 +5,7 @@
 import { SpoilerLogParser, ItemLogParser } from './parser.js';
 import * as State from './state.js';
 import * as Exploration from './exploration.js';
+import * as Toast from './toast.js';
 
 // ============================================================
 // DOM ELEMENTS
@@ -163,7 +164,7 @@ function handleItemLogFile(file) {
             const text = evt.target.result;
             
             if (!text.includes('-- Hints for key items:')) {
-                alert('This does not appear to be a valid Item Randomizer spoiler log.\n\nLook for a file containing "-- Hints for key items:"');
+                Toast.error('Invalid Item Randomizer log. Look for a file containing "-- Hints for key items:"');
                 return;
             }
             
@@ -177,7 +178,7 @@ function handleItemLogFile(file) {
             console.log('Item log loaded:', parsed.keyItems.size, 'zones with key items');
         } catch (err) {
             console.error(err);
-            alert('Error parsing the item log file: ' + err.message);
+            Toast.error('Error parsing the item log: ' + err.message);
         }
     };
     
