@@ -319,47 +319,47 @@ export function highlightFrontier() {
     const explorationState = State.getExplorationState();
     const graphData = State.getGraphData();
     if (!explorationState || !graphData) return;
-    
+
     const svg = d3.select("svg");
     const nodes = svg.selectAll(".node");
     const links = svg.selectAll(".link");
-    
-    // Find frontier: undiscovered nodes adjacent to discovered nodes
-    const frontierNodes = new Set();
+
+    // Find access nodes (discovered nodes that have undiscovered neighbors)
     const accessNodes = new Set();
-    
+
     graphData.links.forEach(link => {
         const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
         const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-        
+
         const sourceDiscovered = explorationState.discovered.has(sourceId);
         const targetDiscovered = explorationState.discovered.has(targetId);
-        
+
         if (sourceDiscovered && !targetDiscovered) {
-            frontierNodes.add(targetId);
             accessNodes.add(sourceId);
-        } else if (!sourceDiscovered && targetDiscovered) {
-            frontierNodes.add(sourceId);
+        } else if (!sourceDiscovered && targetDiscovered && !link.oneWay) {
             accessNodes.add(targetId);
         }
     });
-    
-    // Apply highlights
-    nodes.classed("frontier-highlight", d => frontierNodes.has(d.id))
+
+    // Apply highlights - placeholder nodes (isPlaceholder) are frontier nodes
+    nodes.classed("frontier-highlight", d => d.isPlaceholder === true)
          .classed("access-highlight", d => accessNodes.has(d.id))
-         .classed("dimmed", d => !frontierNodes.has(d.id) && !accessNodes.has(d.id));
-    
+         .classed("dimmed", d => !d.isPlaceholder && !accessNodes.has(d.id));
+
+    // Links to placeholder nodes are frontier links
     links.classed("frontier-highlight", l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-        return (frontierNodes.has(sourceId) && accessNodes.has(targetId)) ||
-               (frontierNodes.has(targetId) && accessNodes.has(sourceId));
+        // A link is frontier if it connects to a placeholder (starts with ???_)
+        return sourceId.startsWith('???_') || targetId.startsWith('???_');
     })
     .classed("dimmed", l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-        return !((frontierNodes.has(sourceId) && accessNodes.has(targetId)) ||
-                (frontierNodes.has(targetId) && accessNodes.has(sourceId)));
+        // Dim links that don't connect to placeholders and don't connect access nodes
+        const isToPlaceholder = sourceId.startsWith('???_') || targetId.startsWith('???_');
+        const connectsAccessNode = accessNodes.has(sourceId) || accessNodes.has(targetId);
+        return !isToPlaceholder && !connectsAccessNode;
     });
 }
 

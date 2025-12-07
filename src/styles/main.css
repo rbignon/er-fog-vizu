@@ -1246,7 +1246,8 @@ marker path {
     display: none;
 }
 
-#tooltip .conn-item:hover .conn-details {
+#tooltip .conn-item:hover .conn-details,
+#tooltip .conn-details.expanded {
     display: block;
 }
 
