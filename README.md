@@ -15,7 +15,7 @@ An interactive web-based tool to visualize spoiler logs from the [Fog Gate Rando
 - **Frontier Highlighting** - See unexplored areas and their access points at a glance
 - **Item Log Integration** - Load Item Randomizer logs to see key item locations on gates
 - **Area Tagging** - Mark areas with custom tags for tracking your progress
-- **Streamer Sync** - Real-time synchronization between devices via WebSocket, perfect for OBS overlays
+- **Stream to OBS** - Real-time synchronization via WebSocket for OBS browser sources
 
 ## Quick Start
 
@@ -57,29 +57,22 @@ Open `http://localhost:8001` in your browser.
    - Hover over connections to see travel info
 4. **Try the demo** - Click "Try Demo" to explore with a sample seed
 
-## Streamer Sync
+## Stream to OBS
 
-Perfect for streaming setups where you want the graph displayed on a separate monitor or OBS browser source.
+Display the graph on your stream with real-time synchronization.
 
 ### Setup
 
-1. Click the **Sync** button in the main UI
-2. Click **Create Session** to generate a 4-character code
-3. On your second device (or OBS browser source), either:
-   - Enter the code manually, or
-   - Use the generated viewer URL directly
+1. Click the **Stream** button in the main UI
+2. Click **Start Session** to create a streaming session
+3. Copy the generated URL
+4. In OBS:
+   - Click **+** under Sources
+   - Select **Browser**
+   - Paste the URL
+   - Set dimensions to **1920 x 1080** (or your canvas size)
 
-### Viewer Mode
-
-The viewer URL format is:
-```
-https://fogvizu.malenia.win/?viewer=true&session=CODE
-```
-
-In viewer mode:
-- The UI is minimal (no controls)
-- All interactions are mirrored from the host in real-time
-- Viewport position and zoom are synchronized
+The browser source will mirror your interactions in real-time: navigation, zoom, node selection, and exploration progress.
 
 ## Deployment
 
