@@ -143,6 +143,43 @@ body::before {
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
+/* Upload footer */
+#upload-footer {
+    position: absolute;
+    bottom: 30px;
+    text-align: center;
+    color: #5a5040;
+    font-size: 0.85rem;
+}
+
+#upload-footer p {
+    margin: 5px 0;
+}
+
+#upload-footer strong {
+    color: #8a7d65;
+    font-weight: 600;
+}
+
+#upload-footer .footer-links {
+    margin-top: 8px;
+}
+
+#upload-footer .footer-links a {
+    color: #7a6d55;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+#upload-footer .footer-links a:hover {
+    color: #c9a227;
+}
+
+#upload-footer .separator {
+    margin: 0 10px;
+    color: #3a3020;
+}
+
 /* Main UI */
 #main-ui {
     display: none;
