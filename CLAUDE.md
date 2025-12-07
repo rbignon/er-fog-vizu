@@ -74,6 +74,47 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 
 4. **No recalculation on viewer**: Viewer applies received classes directly. It must never call `highlightFrontier()` itself - check `State.isStreamerHost()` before any local calculation
 
+## Exploration Mode Logic
+
+### Highlight Modes
+
+**Without node selected:**
+- Frontier mode OFF: Display entire graph normally
+- Frontier mode ON: Highlight placeholder nodes (???) with `frontier-highlight`, discovered nodes adjacent to undiscovered with `access-highlight`, dim everything else
+
+**With node selected (Frontier mode is suspended):**
+- "Path from Start" ON: Highlight shortest path from Chapel of Anticipation to selected node + direct neighbors of selected node, dim everything else
+- "Path from Start" OFF: Follow "subway line" behavior - highlight connected nodes until reaching hubs (nodes with 3+ connections), dim everything else
+- In exploration mode, both modes stop at undiscovered nodes boundary (don't traverse placeholders)
+
+### Discovery/Undiscovery
+
+**When discovering a node:**
+- Recursively discover all connected nodes via preexisting links (respecting one-way)
+- Select the newly discovered node
+- Preserve node positions during re-render
+
+**When undiscovering a node:**
+- Cannot undiscover START_NODE (Chapel of Anticipation)
+- Cascade: also undiscover all nodes that become unreachable from START_NODE
+- Clear selection (don't try to select a placeholder - ambiguous if multiple exist)
+- Reachability check respects one-way links
+
+### Placeholder Nodes (???)
+
+- Created dynamically during render for undiscovered areas adjacent to discovered ones
+- ID format: `???_{sourceNodeId}_{realNodeId}`
+- One-way links: placeholder created only in traversable direction
+- Positioned near their source node with deterministic offset (hash-based)
+
+### One-Way Links
+
+Computed in `computeOneWayLinks()`: a link is one-way if no reverse link exists.
+- Discovery propagation: can follow forward, blocked backward on one-way
+- Undiscovery reachability: same rules
+- Path finding: same rules
+- Placeholder creation: only in traversable direction
+
 ## Deployment
 
 - `fog-vizu.service` - systemd unit file
