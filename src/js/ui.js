@@ -487,6 +487,71 @@ export function initUI() {
         });
     }
     
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Ignore if typing in an input field
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        // Ignore if no graph loaded
+        if (!State.getGraphData()) return;
+
+        const key = e.key.toLowerCase();
+
+        // Escape: close tooltip
+        if (e.key === 'Escape') {
+            const closeBtn = document.querySelector('#tooltip.visible .close-btn');
+            if (closeBtn) {
+                closeBtn.click();
+                e.preventDefault();
+            }
+            return;
+        }
+
+        // D: Discover selected placeholder
+        if (key === 'd') {
+            const discoverBtn = document.querySelector('#tooltip.visible .discover-btn');
+            if (discoverBtn) {
+                discoverBtn.click();
+                e.preventDefault();
+            }
+            return;
+        }
+
+        // U: Undiscover selected node
+        if (key === 'u') {
+            const undiscoverBtn = document.querySelector('#tooltip.visible .undiscover-btn');
+            if (undiscoverBtn) {
+                undiscoverBtn.click();
+                e.preventDefault();
+            }
+            return;
+        }
+
+        // F: Toggle frontier highlight
+        if (key === 'f') {
+            if (!State.isExplorationMode()) return;
+
+            const frontierCheckbox = document.getElementById('show-frontier-checkbox');
+            if (frontierCheckbox) {
+                frontierCheckbox.checked = !frontierCheckbox.checked;
+                onFrontierCheckboxChange(frontierCheckbox.checked);
+                e.preventDefault();
+            }
+            return;
+        }
+
+        // P: Toggle path from start
+        if (key === 'p') {
+            const pathCheckbox = document.getElementById('show-path-from-start');
+            if (pathCheckbox) {
+                pathCheckbox.checked = !pathCheckbox.checked;
+                State.emit('pathFromStartChanged', pathCheckbox.checked);
+                e.preventDefault();
+            }
+            return;
+        }
+    });
+
     // Window resize
     let resizeTimeout;
     window.addEventListener('resize', () => {

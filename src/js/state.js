@@ -29,7 +29,10 @@ const state = {
     // Sync state
     syncConnected: false,
     isStreamerHost: false,
-    sessionCode: null
+    sessionCode: null,
+
+    // Pending undiscover (to select placeholder after re-render)
+    pendingUndiscoveredNodeId: null
 };
 
 // Event bus for inter-module communication
@@ -183,6 +186,18 @@ export function setSyncState(connected, isHost, code) {
     state.isStreamerHost = isHost;
     state.sessionCode = code;
     emit('syncStateChanged', { connected, isHost, code });
+}
+
+export function setPendingUndiscoveredNodeId(nodeId) {
+    state.pendingUndiscoveredNodeId = nodeId;
+}
+
+export function getPendingUndiscoveredNodeId() {
+    return state.pendingUndiscoveredNodeId;
+}
+
+export function clearPendingUndiscoveredNodeId() {
+    state.pendingUndiscoveredNodeId = null;
 }
 
 // ============================================================

@@ -728,7 +728,10 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
     }
     
     function setupTooltipHandlers() {
-        tooltip.select(".close-btn").on("click", () => hideTooltip());
+        tooltip.select(".close-btn").on("click", () => {
+            hideTooltip();
+            State.emit('tooltipClosed');
+        });
 
         // Discover/undiscover buttons
         tooltip.select(".discover-btn").on("click", function() {
@@ -751,10 +754,9 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
         tooltip.select(".undiscover-btn").on("click", function() {
             const nodeId = this.getAttribute("data-node-id");
             if (nodeId) {
-                // Clear selection - don't try to select a placeholder after undiscover
-                // (there could be multiple placeholders created, making selection ambiguous)
-                State.setSelectedNodeId(null);
                 hideTooltip();
+                // Store the nodeId to select placeholder after re-render (if unique)
+                State.setPendingUndiscoveredNodeId(nodeId);
                 Exploration.undiscoverArea(nodeId);
             }
         });
@@ -826,6 +828,13 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
     // Expose for click handler
     node.showTooltipPinned = (event, d) => {
         tooltipPinned = true;
+        // If no event provided, use node position
+        if (!event && d.x !== undefined && d.y !== undefined) {
+            const transform = State.getCurrentZoomTransform() || d3.zoomIdentity;
+            const screenX = transform.applyX(d.x);
+            const screenY = transform.applyY(d.y);
+            event = { pageX: screenX + 50, pageY: screenY };
+        }
         showTooltip(event, d, true);
     };
     
@@ -1042,6 +1051,53 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
     // Restore selected node from state if exists
     let selectedNode = State.getSelectedNodeId();
 
+    // Clear selection helper
+    function clearSelection() {
+        node.hideTooltip();
+        selectedNode = null;
+
+        // If frontier mode is active, re-apply frontier view
+        // Otherwise just reset highlights
+        if (State.isFrontierHighlightActive()) {
+            State.emit('restoreFrontierHighlight');
+        } else {
+            resetHighlight(node, svg);
+        }
+    }
+
+    // Listen for tooltip close button
+    State.subscribe('tooltipClosed', () => {
+        selectedNode = null;
+        if (State.isFrontierHighlightActive()) {
+            State.emit('restoreFrontierHighlight');
+        } else {
+            resetHighlight(node, svg);
+        }
+    });
+
+    // Check if we need to select a placeholder after undiscover
+    const pendingUndiscoveredNodeId = State.getPendingUndiscoveredNodeId();
+    if (pendingUndiscoveredNodeId) {
+        State.clearPendingUndiscoveredNodeId();
+
+        // Find placeholders for the undiscovered node
+        const placeholders = [];
+        node.each(function(d) {
+            if (d.isPlaceholder && d.realId === pendingUndiscoveredNodeId) {
+                placeholders.push(d);
+            }
+        });
+
+        // Only select if there's exactly one placeholder
+        if (placeholders.length === 1) {
+            const placeholder = placeholders[0];
+            selectedNode = placeholder.id;
+            State.setSelectedNodeId(placeholder.id);
+            node.showTooltipPinned(null, placeholder);
+            applySelectionHighlights(placeholder.id, placeholder);
+        }
+    }
+
     // Helper function to apply selection highlights
     function applySelectionHighlights(nodeId, nodeData) {
         let connectedNodes = new Set();
@@ -1125,17 +1181,7 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
         event.stopPropagation();
 
         if (selectedNode === d.id && node.isTooltipPinned()) {
-            node.hideTooltip();
-            selectedNode = null;
-            State.setSelectedNodeId(null);
-
-            // If frontier mode is active, re-apply frontier view
-            // Otherwise just reset highlights
-            if (State.isFrontierHighlightActive()) {
-                State.emit('restoreFrontierHighlight');
-            } else {
-                resetHighlight(node, svg);
-            }
+            clearSelection();
             return;
         }
 
@@ -1149,19 +1195,7 @@ function setupNodeClick(node, svg, nodeConnections, explorationMode, exploration
         State.emit('nodeSelected', { nodeId: d.id });
     });
 
-    svg.on("click", () => {
-        node.hideTooltip();
-        selectedNode = null;
-        State.setSelectedNodeId(null);
-
-        // If frontier mode is active, re-apply frontier view
-        // Otherwise just reset highlights
-        if (State.isFrontierHighlightActive()) {
-            State.emit('restoreFrontierHighlight');
-        } else {
-            resetHighlight(node, svg);
-        }
-    });
+    svg.on("click", () => clearSelection());
 
     // Listen for restore selection highlight event (e.g., after clearing frontier)
     State.subscribe('restoreSelectionHighlight', () => {
