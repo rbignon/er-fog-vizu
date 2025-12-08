@@ -74,6 +74,21 @@ export function renderGraph(preservePositions = false) {
     document.getElementById("random-count").textContent = links.filter(l => l.type === "random").length;
     document.getElementById("preexisting-count").textContent = links.filter(l => l.type === "preexisting").length;
 
+    // Update discovered stats (exploration mode only)
+    const discoveredStat = document.getElementById("discovered-stat");
+    if (explorationMode && explorationState) {
+        const totalAreas = nodes.length;
+        const discoveredCount = explorationState.discovered.size;
+        const percent = totalAreas > 0 ? Math.round((discoveredCount / totalAreas) * 100) : 0;
+
+        document.getElementById("discovered-count").textContent = discoveredCount;
+        document.getElementById("total-areas").textContent = totalAreas;
+        document.getElementById("discovered-percent").textContent = percent;
+        discoveredStat.classList.remove("hidden");
+    } else {
+        discoveredStat.classList.add("hidden");
+    }
+
     // Show/hide "Requires Key Item" legend
     const hasRequiredItems = links.some(l => l.requiredItemFrom);
     document.getElementById("legend-requires-item").classList.toggle('hidden', !hasRequiredItems);

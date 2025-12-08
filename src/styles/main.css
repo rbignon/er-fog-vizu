@@ -1563,6 +1563,18 @@ marker path {
     font-weight: 600;
 }
 
+#discovered-stat {
+    color: #c9a227;
+    font-weight: 500;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #3a3530;
+}
+
+#discovered-stat span {
+    color: #e8d5a3;
+}
+
 /* Help text */
 #help {
     position: fixed;
