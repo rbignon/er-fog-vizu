@@ -15,6 +15,7 @@ const state = {
     explorationMode: true,  // true = Explorer, false = Full Spoiler
     explorationState: {
         discovered: new Set(['Chapel of Anticipation']),  // Start with starting area discovered
+        discoveredLinks: new Set(),  // Links that have been explicitly traversed (format: "sourceId|targetId")
         tags: new Map()
     },
     frontierHighlightActive: false,
@@ -211,6 +212,70 @@ export function undiscoverNode(nodeId) {
     return false;
 }
 
+// ============================================================
+// DISCOVERED LINKS HELPERS
+// ============================================================
+
+/**
+ * Create a canonical link ID from source and target
+ * Format: "sourceId|targetId"
+ */
+export function makeLinkId(sourceId, targetId) {
+    return `${sourceId}|${targetId}`;
+}
+
+/**
+ * Check if a link has been discovered (in either direction for bidirectional links)
+ */
+export function isLinkDiscovered(sourceId, targetId) {
+    return state.explorationState.discoveredLinks.has(makeLinkId(sourceId, targetId));
+}
+
+/**
+ * Mark a link as discovered
+ * @param {string} sourceId - Source node ID
+ * @param {string} targetId - Target node ID
+ * @param {boolean} bidirectional - If true, also mark reverse direction
+ */
+export function discoverLink(sourceId, targetId, bidirectional = false) {
+    const linkId = makeLinkId(sourceId, targetId);
+    const added = !state.explorationState.discoveredLinks.has(linkId);
+
+    state.explorationState.discoveredLinks.add(linkId);
+
+    if (bidirectional) {
+        state.explorationState.discoveredLinks.add(makeLinkId(targetId, sourceId));
+    }
+
+    if (added) {
+        emit('linkDiscovered', { sourceId, targetId, bidirectional });
+    }
+    return added;
+}
+
+/**
+ * Remove a link from discovered set
+ */
+export function undiscoverLink(sourceId, targetId) {
+    const linkId = makeLinkId(sourceId, targetId);
+    return state.explorationState.discoveredLinks.delete(linkId);
+}
+
+/**
+ * Remove all discovered links involving a specific node
+ */
+export function undiscoverLinksForNode(nodeId) {
+    const toRemove = [];
+    state.explorationState.discoveredLinks.forEach(linkId => {
+        const [source, target] = linkId.split('|');
+        if (source === nodeId || target === nodeId) {
+            toRemove.push(linkId);
+        }
+    });
+    toRemove.forEach(linkId => state.explorationState.discoveredLinks.delete(linkId));
+    return toRemove.length;
+}
+
 export function getNodeTags(nodeId) {
     return state.explorationState.tags.get(nodeId) || [];
 }
@@ -281,12 +346,13 @@ function getStorageKey(seed) {
 
 export function saveExplorationToStorage() {
     if (!state.seed || !state.explorationState) return;
-    
+
     const toSave = {
         discovered: Array.from(state.explorationState.discovered),
+        discoveredLinks: Array.from(state.explorationState.discoveredLinks),
         tags: Object.fromEntries(state.explorationState.tags)
     };
-    
+
     try {
         localStorage.setItem(getStorageKey(state.seed), JSON.stringify(toSave));
     } catch (err) {
@@ -297,11 +363,12 @@ export function saveExplorationToStorage() {
 export function loadExplorationFromStorage(seed) {
     const saved = localStorage.getItem(getStorageKey(seed));
     if (!saved) return null;
-    
+
     try {
         const parsed = JSON.parse(saved);
         return {
             discovered: new Set(parsed.discovered || []),
+            discoveredLinks: new Set(parsed.discoveredLinks || []),
             tags: new Map(Object.entries(parsed.tags || {}))
         };
     } catch (err) {

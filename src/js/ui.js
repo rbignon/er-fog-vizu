@@ -70,19 +70,23 @@ function processSpoilerLogText(text) {
     const newSeed = graphData.metadata?.seed || 'unknown';
     State.setSeed(newSeed);
     
+    // Store graph data first (needed for migration)
+    State.setGraphData(graphData);
+
     // Load exploration state BEFORE render (if saved), or initialize
     if (State.isExplorationMode()) {
         const existingSave = State.loadExplorationFromStorage(newSeed);
         if (existingSave) {
             State.setExplorationState(existingSave);
+            // Migrate legacy saves that don't have discoveredLinks
+            Exploration.migrateDiscoveredLinks();
             // Don't show banner - progression is already loaded
         } else {
             Exploration.initExplorationState();
         }
     }
-    
-    // Store graph data and trigger render
-    State.setGraphData(graphData);
+
+    // Trigger render
     State.emit('graphNeedsRender', { preservePositions: false });
 
     // Update UI controls based on current mode
@@ -292,22 +296,24 @@ function switchToSpoilerMode() {
 
 function switchToExplorerMode() {
     if (State.isExplorationMode()) return;
-    
+
     State.setExplorationMode(true);
     updateModeButtons();
-    
+
     // Check for existing save
     const seed = State.getSeed();
     if (seed) {
         const existingSave = State.loadExplorationFromStorage(seed);
         if (existingSave) {
             State.setExplorationState(existingSave);
+            // Migrate legacy saves that don't have discoveredLinks
+            Exploration.migrateDiscoveredLinks();
             // Progression loaded automatically
         } else {
             Exploration.initExplorationState();
         }
     }
-    
+
     State.emit('graphNeedsRender', { preservePositions: true });
 }
 

@@ -47,6 +47,7 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 
 **Exploration State**:
 - `discovered`: Set of area IDs
+- `discoveredLinks`: Set of link IDs (format: `"sourceId|targetId"`)
 - `tags`: Map of area ID → array of tag IDs
 - Preexisting connections auto-propagate discoveries
 
@@ -76,6 +77,17 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 
 ## Exploration Mode Logic
 
+### Design Goal: Zero Spoilers
+
+The exploration mode simulates blind exploration of a randomized game. **The user must never be spoiled about what lies behind unexplored connections.**
+
+Key principles:
+- **Placeholders (???) reveal nothing**: A placeholder shows "there's something here" but never hints at what's behind it - whether it leads to a new area or loops back to an already-discovered location
+- **No visual distinction**: Placeholders for undiscovered nodes look identical to placeholders for undiscovered links to known nodes. The user cannot tell if clicking a placeholder will reveal a new area or connect to somewhere they've already been
+- **Surprise is preserved**: When the user clicks a placeholder, they discover what's behind it - this mirrors the in-game experience of walking through a fog gate without knowing the destination
+
+This is why link discovery tracking exists: even if both endpoints of a link are discovered, the link itself stays hidden (shown as placeholder) until explicitly traversed.
+
 ### Highlight Modes
 
 **Without node selected:**
@@ -102,10 +114,22 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 
 ### Placeholder Nodes (???)
 
-- Created dynamically during render for undiscovered areas adjacent to discovered ones
+Placeholders represent unexplored connections. They are created in two cases:
+1. **Undiscovered node**: Adjacent to a discovered node (classic case)
+2. **Undiscovered link**: Between two discovered nodes where the link hasn't been traversed yet
+
 - ID format: `???_{sourceNodeId}_{realNodeId}`
 - One-way links: placeholder created only in traversable direction
 - Positioned near their source node with deterministic offset (hash-based)
+- `isUndiscoveredLink: true` flag marks placeholders for links between discovered nodes
+
+### Link Discovery
+
+Links between nodes must be explicitly discovered (traversed) to become visible:
+- When discovering a node via a placeholder, only the specific link used is discovered
+- Other links to/from the newly discovered node remain hidden until traversed
+- Bidirectional links: discovering one direction discovers both
+- Legacy saves (without `discoveredLinks`) are auto-migrated: all links between discovered nodes marked as discovered
 
 ### One-Way Links
 

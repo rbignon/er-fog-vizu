@@ -483,6 +483,11 @@ function getFullSyncState() {
 
     const transform = State.getCurrentZoomTransform();
 
+    // Include discovered links for proper link visibility on viewer
+    const discoveredLinks = explorationState?.discoveredLinks
+        ? Array.from(explorationState.discoveredLinks)
+        : [];
+
     return {
         created: Date.now(),
         explorationMode: State.isExplorationMode(),
@@ -496,7 +501,8 @@ function getFullSyncState() {
         selectedNodeId: State.getSelectedNodeId() || null,
         frontierHighlightActive: State.isFrontierHighlightActive(),
         nodes: nodesState,
-        links: linksState
+        links: linksState,
+        discoveredLinks: discoveredLinks
     };
 }
 
@@ -531,7 +537,7 @@ function buildGraphFromSessionData(data) {
     }
 
     const nodes = [];
-    const explorationState = { discovered: new Set(), tags: new Map() };
+    const explorationState = { discovered: new Set(), discoveredLinks: new Set(), tags: new Map() };
 
     for (const [id, nodeState] of Object.entries(data.nodes)) {
         // Skip placeholder nodes - they will be recreated by renderGraph
@@ -579,6 +585,13 @@ function buildGraphFromSessionData(data) {
                 oneWay: linkState.oneWay || false
             });
         }
+    }
+
+    // Restore discovered links from sync data
+    if (data.discoveredLinks && Array.isArray(data.discoveredLinks)) {
+        data.discoveredLinks.forEach(linkId => {
+            explorationState.discoveredLinks.add(linkId);
+        });
     }
 
     const graphData = { nodes, links, metadata: {} };
@@ -734,6 +747,19 @@ function applyVisualState(data) {
                     explorationState.tags.delete(id);
                 }
             }
+        }
+    }
+
+    // Sync discovered links
+    if (data.discoveredLinks && Array.isArray(data.discoveredLinks) && explorationState) {
+        const newDiscoveredLinks = new Set(data.discoveredLinks);
+        const currentLinks = explorationState.discoveredLinks || new Set();
+
+        // Check if links changed
+        if (newDiscoveredLinks.size !== currentLinks.size ||
+            [...newDiscoveredLinks].some(l => !currentLinks.has(l))) {
+            explorationChanged = true;
+            explorationState.discoveredLinks = newDiscoveredLinks;
         }
     }
 

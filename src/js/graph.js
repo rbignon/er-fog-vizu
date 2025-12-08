@@ -111,6 +111,11 @@ export function renderGraph(preservePositions = false) {
         const placeholderNodes = [];
         const processedLinks = [];
 
+        // Helper to check if link is discovered in a given direction
+        const isLinkDiscoveredInDirection = (fromId, toId) => {
+            return State.isLinkDiscovered(fromId, toId);
+        };
+
         links.forEach(link => {
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
             const targetId = typeof link.target === 'object' ? link.target.id : link.target;
@@ -118,8 +123,63 @@ export function renderGraph(preservePositions = false) {
             const targetDiscovered = explorationState.discovered.has(targetId);
 
             if (sourceDiscovered && targetDiscovered) {
-                // Both discovered: show normal link
-                processedLinks.push({...link});
+                // Both nodes discovered - but is the LINK discovered?
+                const linkDiscoveredForward = isLinkDiscoveredInDirection(sourceId, targetId);
+                const linkDiscoveredBackward = isLinkDiscoveredInDirection(targetId, sourceId);
+
+                if (linkDiscoveredForward || linkDiscoveredBackward) {
+                    // Link is discovered: show normal link
+                    processedLinks.push({...link});
+                } else {
+                    // Link NOT discovered: create placeholder(s) for undiscovered link
+                    // Forward direction: source -> target (always possible)
+                    const placeholderIdForward = `???_${sourceId}_${targetId}`;
+                    placeholderMap.set(placeholderIdForward, targetId);
+
+                    if (!placeholderNodes.find(n => n.id === placeholderIdForward)) {
+                        const realNode = nodeMap.get(targetId);
+                        placeholderNodes.push({
+                            id: placeholderIdForward,
+                            realId: targetId,
+                            isPlaceholder: true,
+                            isUndiscoveredLink: true, // Mark as undiscovered link to existing node
+                            isBoss: realNode?.isBoss || false,
+                            scaling: realNode?.scaling || null,
+                            sourceNodeId: sourceId
+                        });
+                    }
+
+                    processedLinks.push({
+                        ...link,
+                        target: placeholderIdForward,
+                        originalTarget: targetId
+                    });
+
+                    // Backward direction: target -> source (only if bidirectional)
+                    if (!link.oneWay) {
+                        const placeholderIdBackward = `???_${targetId}_${sourceId}`;
+                        placeholderMap.set(placeholderIdBackward, sourceId);
+
+                        if (!placeholderNodes.find(n => n.id === placeholderIdBackward)) {
+                            const realNode = nodeMap.get(sourceId);
+                            placeholderNodes.push({
+                                id: placeholderIdBackward,
+                                realId: sourceId,
+                                isPlaceholder: true,
+                                isUndiscoveredLink: true,
+                                isBoss: realNode?.isBoss || false,
+                                scaling: realNode?.scaling || null,
+                                sourceNodeId: targetId
+                            });
+                        }
+
+                        processedLinks.push({
+                            ...link,
+                            source: placeholderIdBackward,
+                            originalSource: sourceId
+                        });
+                    }
+                }
             } else if (sourceDiscovered && !targetDiscovered) {
                 // Source discovered, target not: create placeholder for target
                 const placeholderId = `???_${sourceId}_${targetId}`;
@@ -673,12 +733,17 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
         // Discover/undiscover buttons
         tooltip.select(".discover-btn").on("click", function() {
             const nodeId = this.getAttribute("data-node-id");
+            const sourceNodeId = this.getAttribute("data-source-node-id");
+            const isOneWay = this.getAttribute("data-one-way") === 'true';
+
             if (nodeId) {
                 // If discovering from a placeholder, set the real node as selected
                 // so after re-render it stays selected
                 State.setSelectedNodeId(nodeId);
 
-                Exploration.discoverArea(nodeId);
+                // Pass the source node and link info for proper link discovery tracking
+                const viaLink = sourceNodeId ? { oneWay: isOneWay } : null;
+                Exploration.discoverArea(nodeId, sourceNodeId || null, viaLink);
                 // The graph will re-render; tooltip will be refreshed via graphNeedsRender
             }
         });
@@ -820,7 +885,10 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
 
         // Action button
         if (pinned) {
-            html += `<button class="discover-btn" data-node-id="${realId}">Mark as discovered</button>`;
+            // Include source node info for link discovery tracking
+            const sourceNodeId = d.sourceNodeId || '';
+            const isOneWay = relevantLink?.oneWay ? 'true' : 'false';
+            html += `<button class="discover-btn" data-node-id="${realId}" data-source-node-id="${sourceNodeId}" data-one-way="${isOneWay}">Mark as discovered</button>`;
         }
 
         return html;
