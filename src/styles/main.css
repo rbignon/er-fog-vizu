@@ -387,6 +387,14 @@ body::before {
     font-size: 1.3rem;
 }
 
+.stream-preview {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 8px;
+    border: 1px solid #3a3530;
+    margin-bottom: 16px;
+}
+
 .stream-modal-content p {
     color: #9a8d75;
     margin-bottom: 16px;
