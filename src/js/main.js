@@ -25,8 +25,15 @@ async function init() {
     Sync.initStreamUI();
     
     // Subscribe to graph render events
-    State.subscribe('graphNeedsRender', ({ preservePositions }) => {
+    State.subscribe('graphNeedsRender', ({ preservePositions, centerOnNodeId }) => {
         Graph.renderGraph(preservePositions);
+
+        // Center on discovered node after render stabilizes
+        if (centerOnNodeId) {
+            setTimeout(() => {
+                Graph.centerOnNode(centerOnNodeId);
+            }, 300);
+        }
     });
     
     console.log('Application initialized');

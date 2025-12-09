@@ -1303,6 +1303,58 @@ function setupSearch(node, link, allNodes) {
 }
 
 // ============================================================
+// CENTER ON NODE
+// ============================================================
+
+/**
+ * Center the view on a specific node with smooth animation
+ * @param {string} nodeId - The ID of the node to center on
+ * @param {number} duration - Animation duration in ms (default 500)
+ */
+export function centerOnNode(nodeId, duration = 500) {
+    const svg = d3.select("svg");
+    const container = svg.select("g");
+    const nodes = container.selectAll(".node");
+
+    // Find the node data
+    let targetNode = null;
+    nodes.each(function(d) {
+        if (d.id === nodeId) {
+            targetNode = d;
+        }
+    });
+
+    if (!targetNode || targetNode.x === undefined || targetNode.y === undefined) {
+        return;
+    }
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Get current zoom transform
+    const currentTransform = State.getCurrentZoomTransform() || d3.zoomIdentity;
+    const scale = currentTransform.k;
+
+    // Calculate translation to center the node
+    const targetX = width / 2 - targetNode.x * scale;
+    const targetY = height / 2 - targetNode.y * scale;
+
+    // Create zoom behavior reference
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+            container.attr("transform", event.transform);
+            State.setCurrentZoomTransform(event.transform);
+            State.emit('viewportChanged', event.transform);
+        });
+
+    // Animate to center
+    svg.transition()
+        .duration(duration)
+        .call(zoom.transform, d3.zoomIdentity.translate(targetX, targetY).scale(scale));
+}
+
+// ============================================================
 // EVENT SUBSCRIPTIONS
 // ============================================================
 

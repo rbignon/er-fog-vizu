@@ -86,7 +86,7 @@ export function discoverArea(areaId, fromNodeId = null, viaLink = null) {
     State.saveAllNodePositions();
     discoverWithPreexisting(areaId, fromNodeId, viaLink);
     State.saveExplorationToStorage();
-    State.emit('graphNeedsRender', { preservePositions: true });
+    State.emit('graphNeedsRender', { preservePositions: true, centerOnNodeId: areaId });
 }
 
 /**
