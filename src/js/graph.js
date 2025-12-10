@@ -2,7 +2,7 @@
 // GRAPH - D3.js rendering, simulation, interactions
 // ============================================================
 
-import { ItemLogParser } from './parser.js';
+import { extractRequiredItemFromDescription, parseRequiredItemZones } from './parser.js';
 import * as State from './state.js';
 import * as Exploration from './exploration.js';
 
@@ -858,8 +858,6 @@ function setupTooltip(node, nodeConnections, explorationMode, explorationState, 
 }
 
 function buildTooltipContent(d, nodeConnections, explorationMode, explorationState, pinned, placeholderMap, nodeMap, visibleLinks) {
-    const itemLogData = State.getItemLogData();
-
     // Handle placeholder nodes
     if (d.isPlaceholder) {
         const realId = d.realId;
@@ -902,16 +900,18 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
                 html += `<div class="conn-details expanded">From: ${fromDetails}</div>`;
             }
 
-            // Required item info
-            if (relevantLink.requiredItemFrom && itemLogData) {
-                const reqItems = ItemLogParser.findKeyItemInZone(itemLogData.keyItems, relevantLink.requiredItemFrom);
-                if (reqItems.length > 0) {
-                    html += `<div class="requires-info">🔑 Requires: ${reqItems.join(' or ')}<br>📍 Found in: ${relevantLink.requiredItemFrom}</div>`;
-                } else {
-                    html += `<div class="requires-info">🔑 Requires item from: ${relevantLink.requiredItemFrom}</div>`;
+            // Required item info - extract from description or show zones
+            const requiredItem = extractRequiredItemFromDescription(fromDetails, toDetails);
+            if (requiredItem) {
+                html += `<div class="requires-info">🔑 Requires: ${requiredItem}`;
+                if (relevantLink.requiredItemFrom) {
+                    const zones = parseRequiredItemZones(relevantLink.requiredItemFrom);
+                    html += `<span class="zones-hint" title="${zones.join(', ')}"> (hover for locations)</span>`;
                 }
+                html += `</div>`;
             } else if (relevantLink.requiredItemFrom) {
-                html += `<div class="requires-info">🔑 Requires item from: ${relevantLink.requiredItemFrom}</div>`;
+                const zones = parseRequiredItemZones(relevantLink.requiredItemFrom);
+                html += `<div class="requires-info">🔑 Requires item <span class="zones-hint" title="${zones.join(', ')}">(hover for locations)</span></div>`;
             }
 
             html += '</div>';
@@ -967,15 +967,6 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
             }
         }
 
-        // Key items
-        if (itemLogData) {
-            const keyItems = ItemLogParser.findKeyItemsForArea(itemLogData.keyItems, d.id);
-            if (keyItems.length > 0) {
-                html += '<div class="key-items"><div class="conn-title">Key Items</div>';
-                keyItems.forEach(item => html += `<div class="key-item">${item}</div>`);
-                html += '</div>';
-            }
-        }
     }
 
     // Connections
@@ -994,12 +985,12 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
 
         if (incomingToShow.length > 0) {
             html += `<div class="conn-title">${isUndiscovered ? 'How to reach' : 'Entrances'}</div>`;
-            html += buildConnectionsList(incomingToShow, 'incoming', isUndiscovered, explorationMode, explorationState, pinned, itemLogData, d.id);
+            html += buildConnectionsList(incomingToShow, 'incoming', isUndiscovered, explorationMode, explorationState, pinned, d.id);
         }
 
         if (!isUndiscovered && conns.outgoing.length > 0) {
             html += '<div class="conn-title" style="margin-top: 8px;">Exits</div>';
-            html += buildConnectionsList(conns.outgoing, 'outgoing', false, explorationMode, explorationState, pinned, itemLogData, d.id);
+            html += buildConnectionsList(conns.outgoing, 'outgoing', false, explorationMode, explorationState, pinned, d.id);
         }
 
         html += '</div>';
@@ -1017,7 +1008,7 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
     return html;
 }
 
-function buildConnectionsList(connections, direction, isUndiscovered, explorationMode, explorationState, pinned, itemLogData, currentNodeId) {
+function buildConnectionsList(connections, direction, isUndiscovered, explorationMode, explorationState, pinned, currentNodeId) {
     let html = '';
     const maxShow = pinned ? connections.length : 5;
 
@@ -1078,26 +1069,28 @@ function buildConnectionsList(connections, direction, isUndiscovered, exploratio
             if (toDetails) html += `To: ${toDetails}`;
             html += `</div>`;
         }
-        
-        // Required item info
-        if (hasReq && itemLogData) {
-            const reqItems = ItemLogParser.findKeyItemInZone(itemLogData.keyItems, link.requiredItemFrom);
-            if (reqItems.length > 0) {
-                html += `<div class="requires-info">🔑 Requires: ${reqItems.join(' or ')}<br>📍 Found in: ${link.requiredItemFrom}</div>`;
-            } else {
-                html += `<div class="requires-info">🔑 Requires item from: ${link.requiredItemFrom}</div>`;
+
+        // Required item info - extract from description or show zones on hover
+        const requiredItem = extractRequiredItemFromDescription(fromDetails, toDetails);
+        if (requiredItem) {
+            html += `<div class="requires-info">🔑 Requires: ${requiredItem}`;
+            if (hasReq) {
+                const zones = parseRequiredItemZones(link.requiredItemFrom);
+                html += `<span class="zones-hint" title="${zones.join(', ')}"> (hover for locations)</span>`;
             }
+            html += `</div>`;
         } else if (hasReq) {
-            html += `<div class="requires-info">🔑 Requires item from: ${link.requiredItemFrom}</div>`;
+            const zones = parseRequiredItemZones(link.requiredItemFrom);
+            html += `<div class="requires-info">🔑 Requires item <span class="zones-hint" title="${zones.join(', ')}">(hover for locations)</span></div>`;
         }
-        
+
         html += `</div>`;
     });
-    
+
     if (!pinned && connections.length > 5) {
         html += `<div class="conn-item" style="color: #6a5d45;">... click to see ${connections.length - 5} more</div>`;
     }
-    
+
     return html;
 }
 

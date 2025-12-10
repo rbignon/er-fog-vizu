@@ -2,7 +2,7 @@
 // UI - Upload, header controls, modals, search
 // ============================================================
 
-import { SpoilerLogParser, ItemLogParser } from './parser.js';
+import { SpoilerLogParser } from './parser.js';
 import * as State from './state.js';
 import * as Exploration from './exploration.js';
 import * as Toast from './toast.js';
@@ -58,10 +58,8 @@ function processSpoilerLogText(text) {
     uploadScreen.classList.add('hidden');
     mainUI.classList.add('visible');
     
-    // Reset search and item log
+    // Reset search
     searchInput.value = '';
-    State.setItemLogData(null);
-    updateItemLogButton(false);
     
     // Compute one-way links before storing
     Exploration.computeOneWayLinks(graphData.links);
@@ -136,58 +134,6 @@ function loadDemoData() {
             console.error(err);
             showError('Error loading demo: ' + err.message);
         });
-}
-
-// ============================================================
-// ITEM LOG
-// ============================================================
-
-const addItemLogBtn = document.getElementById('add-item-log-btn');
-const itemLogInput = document.createElement('input');
-itemLogInput.type = 'file';
-itemLogInput.accept = '.txt,.log';
-itemLogInput.classList.add('hidden');
-document.body.appendChild(itemLogInput);
-
-function updateItemLogButton(loaded) {
-    if (loaded) {
-        addItemLogBtn.classList.add('loaded');
-        addItemLogBtn.textContent = '✓ Item Log Loaded';
-    } else {
-        addItemLogBtn.classList.remove('loaded');
-        addItemLogBtn.textContent = 'Add Item Log';
-    }
-}
-
-function handleItemLogFile(file) {
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        try {
-            const text = evt.target.result;
-            
-            if (!text.includes('-- Hints for key items:')) {
-                Toast.error('Invalid Item Randomizer log. Look for a file containing "-- Hints for key items:"');
-                return;
-            }
-            
-            const parsed = ItemLogParser.parse(text);
-            State.setItemLogData(parsed);
-            updateItemLogButton(true);
-            
-            // Re-render graph to apply item info
-            State.emit('graphNeedsRender', { preservePositions: true });
-            
-            console.log('Item log loaded:', parsed.keyItems.size, 'zones with key items');
-        } catch (err) {
-            console.error(err);
-            Toast.error('Error parsing the item log: ' + err.message);
-        }
-    };
-    
-    reader.readAsText(file);
-    itemLogInput.value = '';
 }
 
 // ============================================================
@@ -431,21 +377,16 @@ export function initUI() {
         uploadScreen.classList.remove('hidden');
         fileInput.value = '';
         clearError();
-        State.setItemLogData(null);
-        
+
         const sim = State.getSimulation();
         if (sim) sim.stop();
     });
-    
+
     // Demo button
     const demoBtn = document.getElementById('demo-btn');
     if (demoBtn) {
         demoBtn.addEventListener('click', loadDemoData);
     }
-    
-    // Item log
-    addItemLogBtn.addEventListener('click', () => itemLogInput.click());
-    itemLogInput.addEventListener('change', (e) => handleItemLogFile(e.target.files[0]));
     
     // Search
     searchInput.addEventListener('input', (e) => handleSearch(e.target.value));

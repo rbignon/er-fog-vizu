@@ -7,10 +7,7 @@ const state = {
     // Graph data
     graphData: null,
     seed: null,
-    
-    // Item log (optional)
-    itemLogData: null,
-    
+
     // Exploration mode
     explorationMode: true,  // true = Explorer, false = Full Spoiler
     explorationState: {
@@ -83,10 +80,6 @@ export function getSeed() {
     return state.seed;
 }
 
-export function getItemLogData() {
-    return state.itemLogData;
-}
-
 export function isExplorationMode() {
     return state.explorationMode;
 }
@@ -142,11 +135,6 @@ export function setSeed(seed) {
     if (oldSeed !== seed) {
         emit('seedChanged', { oldSeed, newSeed: seed });
     }
-}
-
-export function setItemLogData(data) {
-    state.itemLogData = data;
-    emit('itemLogDataChanged', data);
 }
 
 export function setExplorationMode(mode) {

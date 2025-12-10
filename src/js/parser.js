@@ -167,14 +167,14 @@ export const SpoilerLogParser = {
         const { areaName: source, details: sourceDetails } = this.extractAreaAndDetails(sourcePart);
         const { areaName: target, details: targetDetails } = this.extractAreaAndDetails(targetPart);
         
-        // Extract "using an item from..." before cleaning
+        // Extract "using an item from..." or "using items from..." before cleaning
         let requiredItemFrom = null;
-        const usingMatch = content.match(/,\s*using an item from\s+(.+?)$/i);
+        const usingMatch = content.match(/,\s*using (?:an )?items? from\s+(.+?)$/i);
         if (usingMatch) {
             requiredItemFrom = usingMatch[1].trim();
         }
-        
-        // Clean up "using an item from..."
+
+        // Clean up "using ... from..."
         const cleanSource = source.split(', using')[0].trim();
         const cleanTarget = target.split(', using')[0].trim();
 
@@ -282,75 +282,65 @@ export const SpoilerLogParser = {
 };
 
 // ============================================================
-// ITEM LOG PARSER
+// KEY ITEMS / ACTIONS DETECTION
 // ============================================================
 
-export const ItemLogParser = {
-    parse(text) {
-        const lines = text.split('\n');
-        const keyItems = new Map(); // zone -> [item names]
-        let inKeyItemsSection = false;
-        let metadata = {};
-        
-        // Extract seed from first line
-        const firstLine = lines[0] || '';
-        const seedMatch = firstLine.match(/seed:(\d+)/);
-        if (seedMatch) {
-            metadata.seed = seedMatch[1];
+// Known key items and actions that can be mentioned in fog log descriptions
+const KNOWN_KEY_ITEMS = [
+    'Hole-Laden Necklace',
+    'Discarded Palace Key',
+    'Carian Inverted Statue',
+    'Drawing-Room Key',
+    'Pureblood Knight\'s Medal',
+    'O Mother',
+    'Rusty Key',
+    'Academy Glintstone Key',
+    'Dectus Medallion',
+    'Haligtree Secret Medallion',
+    'Rold Medallion',
+    'Cursemark of Death',
+    'Dark Moon Ring',
+    'Well Depths Key',
+];
+
+// Known actions that require items (not items themselves but indicate item requirements)
+const KNOWN_ACTIONS = [
+    'burning the Sealing Tree',
+    'acquiring enough Great Runes',
+];
+
+/**
+ * Extract key item or action name from link description text
+ * @param {string} sourceDetails - The source details text
+ * @param {string} targetDetails - The target details text
+ * @returns {string|null} The item/action name if found, null otherwise
+ */
+export function extractRequiredItemFromDescription(sourceDetails, targetDetails) {
+    const text = `${sourceDetails || ''} ${targetDetails || ''}`;
+
+    // Check for known key items
+    for (const item of KNOWN_KEY_ITEMS) {
+        if (text.includes(item)) {
+            return item;
         }
-        
-        for (const line of lines) {
-            const trimmed = line.trim();
-            
-            // Start of key items section
-            if (trimmed === '-- Hints for key items:') {
-                inKeyItemsSection = true;
-                continue;
-            }
-            
-            // End of key items section (next section starts)
-            if (inKeyItemsSection && trimmed.startsWith('-- Hints for ')) {
-                inKeyItemsSection = false;
-                continue;
-            }
-            
-            // Parse key item hint: "Item Name: In Zone"
-            if (inKeyItemsSection && trimmed.includes(': In ')) {
-                const colonIndex = trimmed.indexOf(': In ');
-                if (colonIndex > 0) {
-                    const itemName = trimmed.substring(0, colonIndex).trim();
-                    const zone = trimmed.substring(colonIndex + 5).trim();
-                    
-                    if (!keyItems.has(zone)) {
-                        keyItems.set(zone, []);
-                    }
-                    keyItems.get(zone).push(itemName);
-                }
-            }
-        }
-        
-        return {
-            keyItems, // Map: zone -> [item names]
-            metadata
-        };
-    },
-    
-    // Find key items for a given area (with fuzzy matching)
-    findKeyItemsForArea(keyItems, areaName) {
-        // Exact match only - no partial matching to avoid false positives
-        // (e.g., "Leyndell" matching "Ashen Leyndell - Before Divine Tower")
-        if (keyItems.has(areaName)) {
-            return keyItems.get(areaName);
-        }
-        return [];
-    },
-    
-    // Find which key item is in a given zone (for required items)
-    findKeyItemInZone(keyItems, zoneName) {
-        // Exact match only - no fuzzy matching to avoid false positives
-        if (keyItems.has(zoneName)) {
-            return keyItems.get(zoneName);
-        }
-        return [];
     }
-};
+
+    // Check for known actions
+    for (const action of KNOWN_ACTIONS) {
+        if (text.toLowerCase().includes(action.toLowerCase())) {
+            return action;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Parse the zones list from requiredItemFrom field
+ * @param {string} zonesText - The zones text (single zone or "A; B; C" format)
+ * @returns {string[]} Array of zone names
+ */
+export function parseRequiredItemZones(zonesText) {
+    if (!zonesText) return [];
+    return zonesText.split('; ').map(z => z.trim()).filter(z => z.length > 0);
+}

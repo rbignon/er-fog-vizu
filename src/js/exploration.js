@@ -486,6 +486,15 @@ export function buildNodeConnectionsMap(graphData) {
         nodeConnections.set(n.id, { incoming: [], outgoing: [], degree: 0 });
     });
 
+    // Build set of all explicit link pairs to avoid duplicating bidirectional links
+    // when both directions are already present in the data
+    const explicitLinkPairs = new Set();
+    graphData.links.forEach(l => {
+        const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+        const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+        explicitLinkPairs.add(`${sourceId}|${targetId}`);
+    });
+
     graphData.links.forEach(l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
@@ -505,7 +514,9 @@ export function buildNodeConnectionsMap(graphData) {
         }
 
         // Reverse direction for bidirectional links: target -> source
-        if (!l.oneWay && !isSelfLoop) {
+        // But only if no explicit reverse link already exists in the data
+        const hasExplicitReverse = explicitLinkPairs.has(`${targetId}|${sourceId}`);
+        if (!l.oneWay && !isSelfLoop && !hasExplicitReverse) {
             if (targetConns) {
                 targetConns.outgoing.push({ link: l, reversed: true });
                 targetConns.degree++;
