@@ -346,57 +346,37 @@ export function findPathFromStart(targetNodeId) {
     
     const visited = new Set([State.START_NODE]);
     const queue = [[State.START_NODE, [], []]]; // [nodeId, pathNodes, pathLinks]
-    
+
     while (queue.length > 0) {
         const [currentId, pathNodes, pathLinks] = queue.shift();
         const conns = nodeConnections.get(currentId);
         if (!conns) continue;
-        
-        // Follow outgoing links
-        for (const link of conns.outgoing) {
-            const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-            
-            if (visited.has(targetId)) continue;
-            if (targetId !== targetNodeId && !canTraverse(targetId)) continue;
-            visited.add(targetId);
-            
-            const newPathNodes = [...pathNodes, currentId];
-            const newPathLinks = [...pathLinks, link];
-            
-            if (targetId === targetNodeId) {
-                return {
-                    nodes: new Set([...newPathNodes, targetId]),
-                    links: new Set(newPathLinks)
-                };
-            }
-            
-            queue.push([targetId, newPathNodes, newPathLinks]);
-        }
-        
-        // Follow incoming links (backwards through bidirectional)
-        for (const link of conns.incoming) {
-            if (link.oneWay) continue;
-            
+
+        // Follow outgoing links (includes reverse direction for bidirectional links)
+        for (const { link, reversed } of conns.outgoing) {
+            // Determine the actual target based on whether this is a reversed link
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-            
-            if (visited.has(sourceId)) continue;
-            if (sourceId !== targetNodeId && !canTraverse(sourceId)) continue;
-            visited.add(sourceId);
-            
+            const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+            const neighborId = reversed ? sourceId : targetId;
+
+            if (visited.has(neighborId)) continue;
+            if (neighborId !== targetNodeId && !canTraverse(neighborId)) continue;
+            visited.add(neighborId);
+
             const newPathNodes = [...pathNodes, currentId];
             const newPathLinks = [...pathLinks, link];
-            
-            if (sourceId === targetNodeId) {
+
+            if (neighborId === targetNodeId) {
                 return {
-                    nodes: new Set([...newPathNodes, sourceId]),
+                    nodes: new Set([...newPathNodes, neighborId]),
                     links: new Set(newPathLinks)
                 };
             }
-            
-            queue.push([sourceId, newPathNodes, newPathLinks]);
+
+            queue.push([neighborId, newPathNodes, newPathLinks]);
         }
     }
-    
+
     return { nodes: new Set(), links: new Set() };
 }
 
@@ -426,15 +406,16 @@ export function followLinearPath(startNodeId) {
         const conns = nodeConnections.get(currentId);
         if (!conns) continue;
 
-        [...conns.incoming, ...conns.outgoing].forEach(link => {
+        // Only need to check outgoing - bidirectional links are included in both directions
+        for (const { link, reversed } of conns.outgoing) {
             const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
             const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-            const neighborId = sourceId === currentId ? targetId : sourceId;
+            const neighborId = reversed ? sourceId : targetId;
 
-            if (visitedNodes.has(neighborId)) return;
+            if (visitedNodes.has(neighborId)) continue;
 
             // In exploration mode, stop at undiscovered nodes
-            if (!canTraverse(neighborId)) return;
+            if (!canTraverse(neighborId)) continue;
 
             visitedLinks.add(link);
             visitedNodes.add(neighborId);
@@ -444,7 +425,7 @@ export function followLinearPath(startNodeId) {
             if (neighborConns && neighborConns.degree < 3) {
                 queue.push(neighborId);
             }
-        });
+        }
     }
 
     return { nodes: visitedNodes, links: visitedLinks };
@@ -495,52 +476,82 @@ export function getNodeExplorationStatus(nodeId, links) {
 
 /**
  * Build a map of node connections from graph data
+ * For bidirectional links (oneWay: false), adds connections in both directions
+ * Each connection entry includes { link, reversed } to indicate if it's the reverse direction
  */
 export function buildNodeConnectionsMap(graphData) {
     const nodeConnections = new Map();
-    
+
     graphData.nodes.forEach(n => {
         nodeConnections.set(n.id, { incoming: [], outgoing: [], degree: 0 });
     });
-    
+
     graphData.links.forEach(l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
         const isSelfLoop = sourceId === targetId;
-        
+
         const sourceConns = nodeConnections.get(sourceId);
         const targetConns = nodeConnections.get(targetId);
-        
+
+        // Forward direction: source -> target
         if (sourceConns) {
-            sourceConns.outgoing.push(l);
+            sourceConns.outgoing.push({ link: l, reversed: false });
             sourceConns.degree++;
         }
         if (targetConns && !isSelfLoop) {
-            targetConns.incoming.push(l);
+            targetConns.incoming.push({ link: l, reversed: false });
             targetConns.degree++;
         }
+
+        // Reverse direction for bidirectional links: target -> source
+        if (!l.oneWay && !isSelfLoop) {
+            if (targetConns) {
+                targetConns.outgoing.push({ link: l, reversed: true });
+                targetConns.degree++;
+            }
+            if (sourceConns) {
+                sourceConns.incoming.push({ link: l, reversed: true });
+                sourceConns.degree++;
+            }
+        }
     });
-    
+
     return nodeConnections;
 }
 
 /**
  * Compute one-way property on links
+ *
+ * Logic:
+ * - Preexisting links: one-way if no reverse link exists in the data
+ * - Random links: one-way only if marked as isInherentlyOneWay (teleports, warps, etc.)
+ *   Otherwise assumed bidirectional (fog gates can be traversed both ways)
  */
 export function computeOneWayLinks(links) {
     if (!links || links.length === 0) return;
-    
+
+    // Build set of all link pairs for reverse lookup
     const linkPairs = new Set();
     links.forEach(l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
         linkPairs.add(`${sourceId}|${targetId}`);
     });
-    
+
     links.forEach(l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-        l.oneWay = !linkPairs.has(`${targetId}|${sourceId}`);
+        const hasReverse = linkPairs.has(`${targetId}|${sourceId}`);
+
+        if (l.type === 'random') {
+            // Random links are bidirectional unless explicitly marked as one-way
+            // (teleports, sending gates, abductions, etc.)
+            l.oneWay = l.isInherentlyOneWay === true;
+        } else {
+            // Preexisting links: one-way if no reverse exists
+            l.oneWay = !hasReverse;
+        }
     });
 }
 

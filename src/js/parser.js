@@ -3,6 +3,37 @@
 // ============================================================
 
 export const SpoilerLogParser = {
+    // Patterns that ALWAYS indicate a one-way connection
+    alwaysOneWayPatterns: [
+        /sending gate/i,
+        /abducted/i,
+        /dying/i,
+        /burning the Sealing Tree/i,
+        /using the Pureblood/i,
+        /Hole-Laden Necklace/i,
+        /return to entrance/i,
+        /O Mother/i,
+        /resting in the coffin/i,
+        /using the coffin/i,
+        /lying down/i,
+        /warp to/i,
+        /warp after/i,
+    ],
+
+    // "arriving at/in/from" is only one-way if the SOURCE contains a teleport mechanism
+    // These patterns are checked in the source part when "arriving" is found in target
+    teleportSourcePatterns: [
+        /sending gate/i,
+        /abducted/i,
+        /coffin/i,
+        /Pureblood/i,
+        /Hole-Laden/i,
+        /burning/i,
+        /warp/i,
+        /Horned Remains/i,
+        /lying down/i,
+    ],
+
     // Patterns to skip (metadata lines)
     skipPatterns: [
         /^Options and seed:/,
@@ -146,14 +177,30 @@ export const SpoilerLogParser = {
         // Clean up "using an item from..."
         const cleanSource = source.split(', using')[0].trim();
         const cleanTarget = target.split(', using')[0].trim();
-        
+
+        // Detect if this is a one-way connection based on description patterns
+        // For Random links, check if any one-way pattern matches
+        let isInherentlyOneWay = false;
+        if (connType === 'random') {
+            // Check patterns that always indicate one-way
+            if (this.alwaysOneWayPatterns.some(pattern => pattern.test(content))) {
+                isInherentlyOneWay = true;
+            }
+            // Check "arriving" - only one-way if source contains teleport mechanism
+            else if (/arriving (at|in|from)/i.test(content)) {
+                // Check if source part contains a teleport mechanism
+                isInherentlyOneWay = this.teleportSourcePatterns.some(pattern => pattern.test(sourcePart));
+            }
+        }
+
         return {
             source: cleanSource,
             target: cleanTarget,
             type: connType,
             sourceDetails,
             targetDetails,
-            requiredItemFrom
+            requiredItemFrom,
+            isInherentlyOneWay
         };
     },
     

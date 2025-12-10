@@ -879,15 +879,27 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
         });
 
         if (relevantLink) {
-            const sourceId = typeof relevantLink.source === 'object' ? relevantLink.source.id : relevantLink.source;
-            const isFromSource = sourceId !== d.id;
-            const fromNodeId = isFromSource ? sourceId : (typeof relevantLink.target === 'object' ? relevantLink.target.id : relevantLink.target);
-            const sourceDetails = relevantLink.sourceDetails || '';
+            const linkSourceId = typeof relevantLink.source === 'object' ? relevantLink.source.id : relevantLink.source;
+            const linkTargetId = typeof relevantLink.target === 'object' ? relevantLink.target.id : relevantLink.target;
+
+            // Determine if we're using the link in reverse direction
+            // The placeholder's sourceNodeId tells us where we came from
+            const isReversed = d.sourceNodeId === linkTargetId;
+
+            // The "from" node is the discovered node we're coming from
+            const fromNodeId = d.sourceNodeId;
+
+            // Details depend on direction:
+            // - Normal direction: fromDetails = sourceDetails, toDetails = targetDetails
+            // - Reversed direction: fromDetails = targetDetails, toDetails = sourceDetails
+            const fromDetails = isReversed ? (relevantLink.targetDetails || '') : (relevantLink.sourceDetails || '');
+            const toDetails = isReversed ? (relevantLink.sourceDetails || '') : (relevantLink.targetDetails || '');
 
             html += `<div class="conn-item ${relevantLink.type}${relevantLink.requiredItemFrom ? ' has-requirement' : ''}">`;
             html += `← ${fromNodeId}`;
-            if (sourceDetails) {
-                html += `<div class="conn-details expanded">From: ${sourceDetails}</div>`;
+            // Show where we depart FROM (not where we arrive - that would be a spoiler)
+            if (fromDetails) {
+                html += `<div class="conn-details expanded">From: ${fromDetails}</div>`;
             }
 
             // Required item info
@@ -971,20 +983,23 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
         html += '<div class="connections">';
 
         const incomingToShow = isUndiscovered
-            ? conns.incoming.filter(c => {
-                const sourceName = typeof c.source === 'object' ? c.source.id : c.source;
-                return explorationState && explorationState.discovered.has(sourceName);
+            ? conns.incoming.filter(({ link, reversed }) => {
+                // Determine actual source based on whether link is reversed
+                const linkSource = typeof link.source === 'object' ? link.source.id : link.source;
+                const linkTarget = typeof link.target === 'object' ? link.target.id : link.target;
+                const actualSource = reversed ? linkTarget : linkSource;
+                return explorationState && explorationState.discovered.has(actualSource);
             })
             : conns.incoming;
 
         if (incomingToShow.length > 0) {
             html += `<div class="conn-title">${isUndiscovered ? 'How to reach' : 'Entrances'}</div>`;
-            html += buildConnectionsList(incomingToShow, 'incoming', isUndiscovered, explorationMode, explorationState, pinned, itemLogData);
+            html += buildConnectionsList(incomingToShow, 'incoming', isUndiscovered, explorationMode, explorationState, pinned, itemLogData, d.id);
         }
 
         if (!isUndiscovered && conns.outgoing.length > 0) {
             html += '<div class="conn-title" style="margin-top: 8px;">Exits</div>';
-            html += buildConnectionsList(conns.outgoing, 'outgoing', false, explorationMode, explorationState, pinned, itemLogData);
+            html += buildConnectionsList(conns.outgoing, 'outgoing', false, explorationMode, explorationState, pinned, itemLogData, d.id);
         }
 
         html += '</div>';
@@ -1002,67 +1017,78 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
     return html;
 }
 
-function buildConnectionsList(connections, direction, isUndiscovered, explorationMode, explorationState, pinned, itemLogData) {
+function buildConnectionsList(connections, direction, isUndiscovered, explorationMode, explorationState, pinned, itemLogData, currentNodeId) {
     let html = '';
     const maxShow = pinned ? connections.length : 5;
 
-    connections.slice(0, maxShow).forEach(c => {
-        const sourceName = typeof c.source === 'object' ? c.source.id : c.source;
-        const targetName = typeof c.target === 'object' ? c.target.id : c.target;
-        const name = direction === 'incoming' ? sourceName : targetName;
-        const sourceDetails = c.sourceDetails || '';
-        const targetDetails = c.targetDetails || '';
-        const hasReq = c.requiredItemFrom;
+    connections.slice(0, maxShow).forEach(({ link, reversed }) => {
+        const linkSource = typeof link.source === 'object' ? link.source.id : link.source;
+        const linkTarget = typeof link.target === 'object' ? link.target.id : link.target;
+
+        // Determine actual source/target based on whether link is reversed
+        // For a normal link: source -> target
+        // For a reversed link (bidirectional): target -> source
+        const actualSource = reversed ? linkTarget : linkSource;
+        const actualTarget = reversed ? linkSource : linkTarget;
+
+        // The neighbor is the node we're connecting to (not the current node)
+        const neighborName = direction === 'incoming' ? actualSource : actualTarget;
+
+        // Details also need to be swapped for reversed links
+        const fromDetails = reversed ? (link.targetDetails || '') : (link.sourceDetails || '');
+        const toDetails = reversed ? (link.sourceDetails || '') : (link.targetDetails || '');
+
+        const hasReq = link.requiredItemFrom;
 
         // Check if the link is discovered (in exploration mode)
         const isLinkDiscovered = !explorationMode || !explorationState ||
-            State.isLinkDiscovered(sourceName, targetName) ||
-            State.isLinkDiscovered(targetName, sourceName);
+            State.isLinkDiscovered(linkSource, linkTarget) ||
+            State.isLinkDiscovered(linkTarget, linkSource);
 
         // For outgoing: hide if target not discovered OR link not discovered
         // For incoming: hide if source not discovered OR link not discovered
-        let displayName = name;
+        let displayName = neighborName;
         if (explorationMode && explorationState) {
-            if (direction === 'outgoing' && (!explorationState.discovered.has(targetName) || !isLinkDiscovered)) {
+            if (direction === 'outgoing' && (!explorationState.discovered.has(actualTarget) || !isLinkDiscovered)) {
                 displayName = '???';
-            } else if (direction === 'incoming' && (!explorationState.discovered.has(sourceName) || !isLinkDiscovered)) {
+            } else if (direction === 'incoming' && (!explorationState.discovered.has(actualSource) || !isLinkDiscovered)) {
                 displayName = '???';
             }
         }
 
-        html += `<div class="conn-item ${c.type}${hasReq ? ' has-requirement' : ''}">`;
+        html += `<div class="conn-item ${link.type}${hasReq ? ' has-requirement' : ''}">`;
         html += direction === 'incoming' ? `← ${displayName}` : `→ ${displayName}`;
 
-        // Details: show arrival details (targetDetails) for incoming, departure details (sourceDetails) for outgoing
+        // Details: show arrival details (toDetails) for incoming, departure details (fromDetails) for outgoing
         // But hide source info for undiscovered incoming links (no spoilers)
         if (isUndiscovered && direction === 'incoming') {
             // Placeholder node: show where it arrives
-            if (targetDetails) html += `<div class="conn-details">To: ${targetDetails}</div>`;
+            if (toDetails) html += `<div class="conn-details">To: ${toDetails}</div>`;
         } else if (displayName === '???') {
             // Unknown connection: show only the "safe" side details
-            if (direction === 'incoming' && targetDetails) {
-                html += `<div class="conn-details">To: ${targetDetails}</div>`;
-            } else if (direction === 'outgoing' && sourceDetails) {
-                html += `<div class="conn-details">From: ${sourceDetails}</div>`;
+            if (direction === 'incoming' && toDetails) {
+                html += `<div class="conn-details">To: ${toDetails}</div>`;
+            } else if (direction === 'outgoing' && fromDetails) {
+                html += `<div class="conn-details">From: ${fromDetails}</div>`;
             }
-        } else if (sourceDetails || targetDetails) {
+        } else if (fromDetails || toDetails) {
             html += `<div class="conn-details">`;
-            if (sourceDetails) html += `From: ${sourceDetails}`;
-            if (sourceDetails && targetDetails) html += `<br>`;
-            if (targetDetails) html += `To: ${targetDetails}`;
+            if (fromDetails) html += `From: ${fromDetails}`;
+            if (fromDetails && toDetails) html += `<br>`;
+            if (toDetails) html += `To: ${toDetails}`;
             html += `</div>`;
         }
         
         // Required item info
         if (hasReq && itemLogData) {
-            const reqItems = ItemLogParser.findKeyItemInZone(itemLogData.keyItems, c.requiredItemFrom);
+            const reqItems = ItemLogParser.findKeyItemInZone(itemLogData.keyItems, link.requiredItemFrom);
             if (reqItems.length > 0) {
-                html += `<div class="requires-info">🔑 Requires: ${reqItems.join(' or ')}<br>📍 Found in: ${c.requiredItemFrom}</div>`;
+                html += `<div class="requires-info">🔑 Requires: ${reqItems.join(' or ')}<br>📍 Found in: ${link.requiredItemFrom}</div>`;
             } else {
-                html += `<div class="requires-info">🔑 Requires item from: ${c.requiredItemFrom}</div>`;
+                html += `<div class="requires-info">🔑 Requires item from: ${link.requiredItemFrom}</div>`;
             }
         } else if (hasReq) {
-            html += `<div class="requires-info">🔑 Requires item from: ${c.requiredItemFrom}</div>`;
+            html += `<div class="requires-info">🔑 Requires item from: ${link.requiredItemFrom}</div>`;
         }
         
         html += `</div>`;
