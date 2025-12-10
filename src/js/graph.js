@@ -1005,7 +1005,7 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
 function buildConnectionsList(connections, direction, isUndiscovered, explorationMode, explorationState, pinned, itemLogData) {
     let html = '';
     const maxShow = pinned ? connections.length : 5;
-    
+
     connections.slice(0, maxShow).forEach(c => {
         const sourceName = typeof c.source === 'object' ? c.source.id : c.source;
         const targetName = typeof c.target === 'object' ? c.target.id : c.target;
@@ -1013,27 +1013,44 @@ function buildConnectionsList(connections, direction, isUndiscovered, exploratio
         const sourceDetails = c.sourceDetails || '';
         const targetDetails = c.targetDetails || '';
         const hasReq = c.requiredItemFrom;
-        
-        // For outgoing, check if target is discovered
+
+        // Check if the link is discovered (in exploration mode)
+        const isLinkDiscovered = !explorationMode || !explorationState ||
+            State.isLinkDiscovered(sourceName, targetName) ||
+            State.isLinkDiscovered(targetName, sourceName);
+
+        // For outgoing: hide if target not discovered OR link not discovered
+        // For incoming: hide if source not discovered OR link not discovered
         let displayName = name;
-        if (direction === 'outgoing' && explorationMode && explorationState && !explorationState.discovered.has(targetName)) {
-            displayName = '???';
+        if (explorationMode && explorationState) {
+            if (direction === 'outgoing' && (!explorationState.discovered.has(targetName) || !isLinkDiscovered)) {
+                displayName = '???';
+            } else if (direction === 'incoming' && (!explorationState.discovered.has(sourceName) || !isLinkDiscovered)) {
+                displayName = '???';
+            }
         }
-        
+
         html += `<div class="conn-item ${c.type}${hasReq ? ' has-requirement' : ''}">`;
         html += direction === 'incoming' ? `← ${displayName}` : `→ ${displayName}`;
-        
-        // Details
+
+        // Details: show arrival details (targetDetails) for incoming, departure details (sourceDetails) for outgoing
+        // But hide source info for undiscovered incoming links (no spoilers)
         if (isUndiscovered && direction === 'incoming') {
-            if (sourceDetails) html += `<div class="conn-details">From: ${sourceDetails}</div>`;
-        } else if (displayName !== '???' && (sourceDetails || targetDetails)) {
+            // Placeholder node: show where it arrives
+            if (targetDetails) html += `<div class="conn-details">To: ${targetDetails}</div>`;
+        } else if (displayName === '???') {
+            // Unknown connection: show only the "safe" side details
+            if (direction === 'incoming' && targetDetails) {
+                html += `<div class="conn-details">To: ${targetDetails}</div>`;
+            } else if (direction === 'outgoing' && sourceDetails) {
+                html += `<div class="conn-details">From: ${sourceDetails}</div>`;
+            }
+        } else if (sourceDetails || targetDetails) {
             html += `<div class="conn-details">`;
             if (sourceDetails) html += `From: ${sourceDetails}`;
             if (sourceDetails && targetDetails) html += `<br>`;
             if (targetDetails) html += `To: ${targetDetails}`;
             html += `</div>`;
-        } else if (displayName === '???' && sourceDetails) {
-            html += `<div class="conn-details">From: ${sourceDetails}</div>`;
         }
         
         // Required item info
