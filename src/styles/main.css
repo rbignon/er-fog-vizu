@@ -588,6 +588,67 @@ body.viewer-mode .node.boss.viewer-selected .selection-ring {
     }
 }
 
+/* Viewer mode discovery counter - minimal OBS overlay */
+#viewer-discovery-counter {
+    position: fixed;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #e8d5a3;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(201, 162, 39, 0.4);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Position classes for counter (?counter=tl/tr/bl/br) */
+#viewer-discovery-counter.pos-br {
+    bottom: 24px;
+    right: 24px;
+}
+
+#viewer-discovery-counter.pos-bl {
+    bottom: 24px;
+    left: 24px;
+}
+
+#viewer-discovery-counter.pos-tr {
+    top: 24px;
+    right: 24px;
+}
+
+#viewer-discovery-counter.pos-tl {
+    top: 24px;
+    left: 24px;
+}
+
+#viewer-discovery-counter #viewer-discovered {
+    color: #c9a227;
+}
+
+#viewer-discovery-counter.hidden {
+    display: none;
+}
+
+/* Only show in viewer mode when exploration is active */
+body:not(.viewer-mode) #viewer-discovery-counter {
+    display: none !important;
+}
+
+/* Subtle pulse animation when count changes */
+@keyframes counter-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+#viewer-discovery-counter.updated {
+    animation: counter-pulse 0.3s ease-out;
+}
+
 label {
     font-size: 0.9rem;
     color: #9a8d75;

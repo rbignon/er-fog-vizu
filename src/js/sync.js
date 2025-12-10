@@ -32,6 +32,8 @@ let currentSessionCode = null;  // Track session code for reconnection
 const urlParams = new URLSearchParams(window.location.search);
 const isViewerMode = urlParams.get('viewer') === 'true' || urlParams.get('mode') === 'viewer';
 const urlSessionCode = urlParams.get('session');
+// Counter position: off, tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right, default)
+const counterPosition = urlParams.get('counter') || 'br';
 
 // =============================================================================
 // Initialization
@@ -488,6 +490,10 @@ function getFullSyncState() {
         ? Array.from(explorationState.discoveredLinks)
         : [];
 
+    // Calculate discovered stats for viewer counter
+    const discoveredCount = explorationState?.discovered?.size || 0;
+    const totalAreas = graphData?.nodes?.length || 0;
+
     return {
         created: Date.now(),
         explorationMode: State.isExplorationMode(),
@@ -502,7 +508,9 @@ function getFullSyncState() {
         frontierHighlightActive: State.isFrontierHighlightActive(),
         nodes: nodesState,
         links: linksState,
-        discoveredLinks: discoveredLinks
+        discoveredLinks: discoveredLinks,
+        discoveredCount: discoveredCount,
+        totalAreas: totalAreas
     };
 }
 
@@ -851,6 +859,55 @@ function applyVisualClasses(data) {
                     .classed("frontier-highlight", linkState.frontierHighlight || false);
             }
         });
+    }
+
+    // Update viewer discovery counter
+    updateViewerDiscoveryCounter(data);
+}
+
+// Update viewer discovery counter (OBS overlay)
+function updateViewerDiscoveryCounter(data) {
+    if (!isViewerMode) return;
+
+    const counter = document.getElementById('viewer-discovery-counter');
+    if (!counter) return;
+
+    // Handle counter disabled via URL param
+    if (counterPosition === 'off') {
+        counter.classList.add('hidden');
+        return;
+    }
+
+    const explorationMode = data.explorationMode;
+    const discoveredCount = data.discoveredCount || 0;
+    const totalAreas = data.totalAreas || 0;
+
+    if (!explorationMode || totalAreas === 0) {
+        counter.classList.add('hidden');
+        return;
+    }
+
+    // Apply position class based on URL param
+    counter.classList.remove('pos-tl', 'pos-tr', 'pos-bl', 'pos-br');
+    counter.classList.add(`pos-${counterPosition}`);
+
+    const discoveredEl = document.getElementById('viewer-discovered');
+    const totalEl = document.getElementById('viewer-total');
+
+    if (discoveredEl && totalEl) {
+        const oldCount = parseInt(discoveredEl.textContent) || 0;
+
+        discoveredEl.textContent = discoveredCount;
+        totalEl.textContent = totalAreas;
+        counter.classList.remove('hidden');
+
+        // Trigger pulse animation on change
+        if (oldCount !== discoveredCount) {
+            counter.classList.remove('updated');
+            // Force reflow to restart animation
+            void counter.offsetWidth;
+            counter.classList.add('updated');
+        }
     }
 }
 
