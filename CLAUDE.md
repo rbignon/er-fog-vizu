@@ -60,7 +60,7 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 
 ## Important Conventions
 
-- Events that modify DOM visuals should delay `syncToFirebase()` by ~50ms to capture CSS changes
+- Events that modify DOM visuals should delay `syncState()` by ~50ms to capture CSS changes
 - Viewer never recalculates highlights locally - applies classes received from host
 - localStorage persists exploration per seed: `er-fog-exploration-{seed}`
 - D3 selections use `.node` and `.link` classes
