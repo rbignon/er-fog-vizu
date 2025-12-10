@@ -190,6 +190,12 @@ export const SpoilerLogParser = {
                         scaling: areaInfo.scaling,
                         order: areaOrder++
                     });
+                } else {
+                    // Update existing area with boss/scaling info if we have it
+                    // (area may have been created earlier from a connection line)
+                    const existing = areas.get(areaInfo.name);
+                    if (areaInfo.isBoss) existing.isBoss = true;
+                    if (areaInfo.scaling) existing.scaling = areaInfo.scaling;
                 }
                 continue;
             }
