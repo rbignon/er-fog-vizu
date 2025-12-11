@@ -40,6 +40,8 @@ const isViewerMode = urlParams.get('viewer') === 'true' || urlParams.get('mode')
 const urlSessionCode = urlParams.get('session');
 // Counter position: off, tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right, default)
 const counterPosition = urlParams.get('counter') || 'br';
+// Counter size: sm (small), md (medium, default), lg (large), xl (extra-large)
+const counterSize = urlParams.get('size') || 'md';
 
 // =============================================================================
 // Heartbeat Monitoring (client-side)
@@ -964,14 +966,32 @@ function updateViewerDiscoveryCounter(data) {
     counter.classList.remove('pos-tl', 'pos-tr', 'pos-bl', 'pos-br');
     counter.classList.add(`pos-${counterPosition}`);
 
+    // Apply size class based on URL param
+    counter.classList.remove('size-sm', 'size-md', 'size-lg', 'size-xl');
+    counter.classList.add(`size-${counterSize}`);
+
     const discoveredEl = document.getElementById('viewer-discovered');
     const totalEl = document.getElementById('viewer-total');
+    const percentEl = document.getElementById('viewer-percent');
+    const progressBar = document.getElementById('viewer-progress-bar');
 
     if (discoveredEl && totalEl) {
         const oldCount = parseInt(discoveredEl.textContent) || 0;
+        const percent = Math.round((discoveredCount / totalAreas) * 100);
 
         discoveredEl.textContent = discoveredCount;
         totalEl.textContent = totalAreas;
+
+        // Update percentage display
+        if (percentEl) {
+            percentEl.textContent = `(${percent}%)`;
+        }
+
+        // Update progress bar
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+        }
+
         counter.classList.remove('hidden');
 
         // Trigger pulse animation on change
@@ -1034,7 +1054,8 @@ function showConnectedUI() {
     }
 
     const viewerUrl = window.location.origin + window.location.pathname +
-                     '?viewer=true&session=' + sessionCode;
+                     '?viewer=true&session=' + sessionCode +
+                     '&counter=br&size=md';
     document.getElementById('stream-url-input').value = viewerUrl;
 
     const syncStatus = document.getElementById('sync-status');

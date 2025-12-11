@@ -149,7 +149,13 @@
 
         <!-- Viewer mode discovery counter (OBS overlay) -->
         <div id="viewer-discovery-counter" class="hidden">
-            <span id="viewer-discovered">0</span>/<span id="viewer-total">0</span>
+            <div class="counter-text">
+                <span id="viewer-discovered">0</span>/<span id="viewer-total">0</span>
+                <span id="viewer-percent" class="counter-percent"></span>
+            </div>
+            <div class="counter-progress">
+                <div id="viewer-progress-bar" class="counter-progress-fill"></div>
+            </div>
         </div>
     </div>
 

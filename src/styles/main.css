@@ -588,23 +588,96 @@ body.viewer-mode .node.boss.viewer-selected .selection-ring {
     }
 }
 
-/* Viewer mode discovery counter - minimal OBS overlay */
+/* Viewer mode discovery counter - OBS overlay */
 #viewer-discovery-counter {
     position: fixed;
     font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 1.1rem;
     font-weight: 600;
     color: #e8d5a3;
-    background: rgba(0, 0, 0, 0.5);
-    padding: 8px 14px;
-    border-radius: 6px;
-    border: 1px solid rgba(201, 162, 39, 0.4);
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    border: 1px solid rgba(201, 162, 39, 0.5);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
     z-index: 1000;
     transition: opacity 0.3s, transform 0.3s;
+    min-width: 120px;
 }
 
-/* Position classes for counter (?counter=tl/tr/bl/br) */
+/* Size variants (?size=sm/md/lg/xl) */
+#viewer-discovery-counter.size-sm {
+    font-size: 1rem;
+    padding: 8px 12px;
+    min-width: 100px;
+}
+
+#viewer-discovery-counter.size-md {
+    font-size: 1.4rem;
+    padding: 12px 18px;
+    min-width: 140px;
+}
+
+#viewer-discovery-counter.size-lg {
+    font-size: 2rem;
+    padding: 16px 24px;
+    min-width: 180px;
+}
+
+#viewer-discovery-counter.size-xl {
+    font-size: 2.8rem;
+    padding: 20px 32px;
+    min-width: 240px;
+}
+
+/* Counter text layout */
+#viewer-discovery-counter .counter-text {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.3em;
+    white-space: nowrap;
+}
+
+#viewer-discovery-counter #viewer-discovered {
+    color: #c9a227;
+    font-weight: 700;
+}
+
+#viewer-discovery-counter .counter-percent {
+    color: #9a8d75;
+    font-size: 0.7em;
+    font-weight: 500;
+}
+
+/* Progress bar */
+#viewer-discovery-counter .counter-progress {
+    margin-top: 0.5em;
+    height: 6px;
+    background: rgba(60, 50, 30, 0.8);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(201, 162, 39, 0.3);
+}
+
+#viewer-discovery-counter.size-sm .counter-progress {
+    height: 4px;
+    margin-top: 0.4em;
+}
+
+#viewer-discovery-counter.size-lg .counter-progress,
+#viewer-discovery-counter.size-xl .counter-progress {
+    height: 8px;
+    margin-top: 0.6em;
+}
+
+#viewer-discovery-counter .counter-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #8b6914, #c9a227, #e8c547);
+    border-radius: 2px;
+    transition: width 0.4s ease-out;
+    box-shadow: 0 0 8px rgba(201, 162, 39, 0.5);
+}
+
+/* Position classes (?counter=tl/tr/bl/br) */
 #viewer-discovery-counter.pos-br {
     bottom: 24px;
     right: 24px;
@@ -623,10 +696,6 @@ body.viewer-mode .node.boss.viewer-selected .selection-ring {
 #viewer-discovery-counter.pos-tl {
     top: 24px;
     left: 24px;
-}
-
-#viewer-discovery-counter #viewer-discovered {
-    color: #c9a227;
 }
 
 #viewer-discovery-counter.hidden {
