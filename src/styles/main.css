@@ -677,7 +677,7 @@ body.viewer-mode .node.boss.viewer-selected .selection-ring {
     box-shadow: 0 0 8px rgba(201, 162, 39, 0.5);
 }
 
-/* Position classes (?counter=tl/tr/bl/br) */
+/* Position classes (?counter=tl/tr/bl/br/t/b/l/r) */
 #viewer-discovery-counter.pos-br {
     bottom: 24px;
     right: 24px;
@@ -698,6 +698,31 @@ body.viewer-mode .node.boss.viewer-selected .selection-ring {
     left: 24px;
 }
 
+/* Centered positions */
+#viewer-discovery-counter.pos-t {
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#viewer-discovery-counter.pos-b {
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#viewer-discovery-counter.pos-l {
+    left: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#viewer-discovery-counter.pos-r {
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
 #viewer-discovery-counter.hidden {
     display: none;
 }
@@ -709,13 +734,13 @@ body:not(.viewer-mode) #viewer-discovery-counter {
 
 /* Subtle pulse animation when count changes */
 @keyframes counter-pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.6); }
+    50% { box-shadow: 0 0 12px 4px rgba(201, 162, 39, 0.4); }
+    100% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0); }
 }
 
 #viewer-discovery-counter.updated {
-    animation: counter-pulse 0.3s ease-out;
+    animation: counter-pulse 0.4s ease-out;
 }
 
 label {

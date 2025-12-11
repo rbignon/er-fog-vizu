@@ -38,7 +38,7 @@ let heartbeatCheckInterval = null;
 const urlParams = new URLSearchParams(window.location.search);
 const isViewerMode = urlParams.get('viewer') === 'true' || urlParams.get('mode') === 'viewer';
 const urlSessionCode = urlParams.get('session');
-// Counter position: off, tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right, default)
+// Counter position: off, tl, tr, bl, br (default), t, b, l, r (centered on edge)
 const counterPosition = urlParams.get('counter') || 'br';
 // Counter size: sm (small), md (medium, default), lg (large), xl (extra-large)
 const counterSize = urlParams.get('size') || 'md';
