@@ -28,12 +28,55 @@ let isRenderingGraph = false;
 let isSyncing = false;
 let currentSessionCode = null;  // Track session code for reconnection
 
+// Client-side heartbeat monitoring (detect if server stops sending pings)
+const HEARTBEAT_EXPECTED_INTERVAL = 15000;  // Server sends ping every 15s
+const HEARTBEAT_GRACE_PERIOD = 15000;       // Allow 15s extra before considering dead
+let lastServerPing = null;
+let heartbeatCheckInterval = null;
+
 // Check for viewer mode in URL
 const urlParams = new URLSearchParams(window.location.search);
 const isViewerMode = urlParams.get('viewer') === 'true' || urlParams.get('mode') === 'viewer';
 const urlSessionCode = urlParams.get('session');
 // Counter position: off, tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right, default)
 const counterPosition = urlParams.get('counter') || 'br';
+
+// =============================================================================
+// Heartbeat Monitoring (client-side)
+// =============================================================================
+
+function startHeartbeatMonitoring() {
+    lastServerPing = Date.now();
+    stopHeartbeatMonitoring();  // Clear any existing interval
+
+    heartbeatCheckInterval = setInterval(() => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            stopHeartbeatMonitoring();
+            return;
+        }
+
+        const timeSinceLastPing = Date.now() - lastServerPing;
+        const timeout = HEARTBEAT_EXPECTED_INTERVAL + HEARTBEAT_GRACE_PERIOD;
+
+        if (timeSinceLastPing > timeout) {
+            console.log(`No server ping for ${Math.round(timeSinceLastPing / 1000)}s, connection likely dead`);
+            // Force close to trigger reconnection
+            ws.close();
+            stopHeartbeatMonitoring();
+        }
+    }, 5000);  // Check every 5 seconds
+}
+
+function stopHeartbeatMonitoring() {
+    if (heartbeatCheckInterval) {
+        clearInterval(heartbeatCheckInterval);
+        heartbeatCheckInterval = null;
+    }
+}
+
+function onServerPingReceived() {
+    lastServerPing = Date.now();
+}
 
 // =============================================================================
 // Initialization
@@ -85,10 +128,18 @@ export async function createSession() {
         ws.onopen = () => {
             console.log("WebSocket connected as host");
             reconnectAttempts = 0;
+            startHeartbeatMonitoring();
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+
+            // Respond to server pings
+            if (data.type === 'ping') {
+                onServerPingReceived();
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
 
             if (data.type === 'session_created') {
                 currentSessionCode = data.code;
@@ -100,10 +151,12 @@ export async function createSession() {
         };
 
         ws.onerror = () => {
+            stopHeartbeatMonitoring();
             reject(new Error("Connection failed"));
         };
 
         ws.onclose = () => {
+            stopHeartbeatMonitoring();
             if (State.isSyncConnected()) {
                 handleDisconnect();
             }
@@ -118,10 +171,18 @@ async function resumeHostSession(code) {
 
         ws.onopen = () => {
             console.log("WebSocket reconnecting as host...");
+            startHeartbeatMonitoring();
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+
+            // Respond to server pings
+            if (data.type === 'ping') {
+                onServerPingReceived();
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
 
             if (data.type === 'error') {
                 console.log("Failed to resume session:", data.message);
@@ -144,10 +205,12 @@ async function resumeHostSession(code) {
         };
 
         ws.onerror = () => {
+            stopHeartbeatMonitoring();
             reject(new Error("Connection failed"));
         };
 
         ws.onclose = () => {
+            stopHeartbeatMonitoring();
             if (State.isSyncConnected()) {
                 handleDisconnect();
             }
@@ -165,10 +228,18 @@ export async function joinSession(code, isReconnect = false) {
         ws.onopen = () => {
             console.log("WebSocket connected as viewer");
             reconnectAttempts = 0;
+            startHeartbeatMonitoring();
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+
+            // Respond to server pings
+            if (data.type === 'ping') {
+                onServerPingReceived();
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
 
             if (data.type === 'error') {
                 if (!isReconnect) {
@@ -238,10 +309,12 @@ export async function joinSession(code, isReconnect = false) {
         };
 
         ws.onerror = () => {
+            stopHeartbeatMonitoring();
             reject(new Error("Connection failed"));
         };
 
         ws.onclose = () => {
+            stopHeartbeatMonitoring();
             if (State.isSyncConnected()) {
                 handleDisconnect();
             }

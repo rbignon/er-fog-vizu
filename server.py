@@ -29,6 +29,10 @@ app = FastAPI(title="Fog Gate Sync Server")
 # How long to keep orphan sessions (seconds)
 ORPHAN_SESSION_TTL = 300  # 5 minutes
 
+# Heartbeat settings
+HEARTBEAT_INTERVAL = 15  # Send ping every 15 seconds
+HEARTBEAT_TIMEOUT = 10   # Wait 10 seconds for pong response
+
 
 # =============================================================================
 # Session Management
@@ -88,6 +92,7 @@ async def handle_host_session(websocket: WebSocket, session: Session, is_resume:
     """Common handler for host connections (new or resumed)."""
     session.host = websocket
     session.orphaned_at = None  # Clear orphan status
+    last_pong = time.time()
 
     # Send confirmation to host
     await websocket.send_json({
@@ -103,11 +108,34 @@ async def handle_host_session(websocket: WebSocket, session: Session, is_resume:
             except Exception:
                 pass
 
+    async def heartbeat_task():
+        """Send periodic pings to detect dead connections."""
+        nonlocal last_pong
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            # Check if we received a pong recently
+            if time.time() - last_pong > HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT:
+                print(f"Host heartbeat timeout for session {session.code}")
+                await websocket.close()
+                return
+            try:
+                await websocket.send_json({"type": "ping"})
+            except Exception:
+                return
+
+    heartbeat = asyncio.create_task(heartbeat_task())
+
     try:
         while True:
             data = await websocket.receive_json()
 
+            # Handle pong responses
+            if data.get("type") == "pong":
+                last_pong = time.time()
+                continue
+
             if data.get("type") == "state_update":
+                last_pong = time.time()  # Any message counts as activity
                 session.state = data.get("state", {})
                 # Broadcast to all viewers
                 disconnected = []
@@ -126,7 +154,10 @@ async def handle_host_session(websocket: WebSocket, session: Session, is_resume:
 
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        print(f"Host session error: {e}")
     finally:
+        heartbeat.cancel()
         # Mark session as orphaned instead of deleting
         session.host = None
         session.orphaned_at = time.time()
@@ -191,6 +222,7 @@ async def viewer_connect(websocket: WebSocket, code: str):
     session = sessions[code]
     await websocket.accept()
     session.viewers.append(websocket)
+    last_pong = time.time()
 
     # Send current state immediately
     await websocket.send_json({
@@ -199,13 +231,34 @@ async def viewer_connect(websocket: WebSocket, code: str):
         "host_connected": session.host is not None
     })
 
-    try:
-        # Keep connection alive, handle any viewer messages if needed
+    async def heartbeat_task():
+        """Send periodic pings to detect dead viewer connections."""
+        nonlocal last_pong
         while True:
-            await websocket.receive_text()
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            if time.time() - last_pong > HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT:
+                print(f"Viewer heartbeat timeout for session {code}")
+                await websocket.close()
+                return
+            try:
+                await websocket.send_json({"type": "ping"})
+            except Exception:
+                return
+
+    heartbeat = asyncio.create_task(heartbeat_task())
+
+    try:
+        # Keep connection alive, handle viewer messages
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "pong":
+                last_pong = time.time()
     except WebSocketDisconnect:
         pass
+    except Exception:
+        pass
     finally:
+        heartbeat.cancel()
         if websocket in session.viewers:
             session.viewers.remove(websocket)
 
