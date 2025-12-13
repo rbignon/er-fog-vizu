@@ -919,8 +919,8 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
 
         html += '</div>';
 
-        // Action button
-        if (pinned) {
+        // Action button (not shown for viewers)
+        if (pinned && !State.isViewerMode()) {
             // Include source node info for link discovery tracking
             const sourceNodeId = d.sourceNodeId || '';
             const isOneWay = relevantLink?.oneWay ? 'true' : 'false';
@@ -996,12 +996,12 @@ function buildTooltipContent(d, nodeConnections, explorationMode, explorationSta
         html += '</div>';
     }
 
-    // Action buttons
-    if (isUndiscovered && pinned) {
+    // Action buttons (not shown for viewers)
+    if (isUndiscovered && pinned && !State.isViewerMode()) {
         html += `<button class="discover-btn" data-node-id="${d.id}">Mark as discovered</button>`;
     }
 
-    if (explorationMode && !isUndiscovered && pinned && d.id !== State.START_NODE) {
+    if (explorationMode && !isUndiscovered && pinned && d.id !== State.START_NODE && !State.isViewerMode()) {
         html += `<button class="undiscover-btn" data-node-id="${d.id}">↩️ Mark as undiscovered</button>`;
     }
 

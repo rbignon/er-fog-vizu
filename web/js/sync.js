@@ -16,414 +16,81 @@ function getWsUrl() {
     return `${protocol}//${window.location.host}`;
 }
 
-let ws = null;
-let reconnectAttempts = 0;
 const MAX_RECONNECT_DURATION = 5 * 60 * 1000;  // 5 minutes total
 const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;  // Cap at 30 seconds between attempts
-let reconnectStartTime = null;
-let isReconnecting = false;
+
 let syncThrottle = null;
 let lastSyncedViewport = null;
 let isRenderingGraph = false;
 let isSyncing = false;
-let currentSessionCode = null;  // Track session code for reconnection
 
-// New backend protocol variables
+// Game WebSocket variables
 let gameWs = null;
 let currentGameId = null;
+let gameWsReconnectAttempts = 0;
+let gameWsReconnectStartTime = null;
+let gameWsIsReconnecting = false;
+let gameWsIsHost = false;  // Track if we connected as host or viewer
 
 // Client-side heartbeat monitoring (detect if server stops sending pings)
 const HEARTBEAT_EXPECTED_INTERVAL = 15000;  // Server sends ping every 15s
 const HEARTBEAT_GRACE_PERIOD = 15000;       // Allow 15s extra before considering dead
-let lastServerPing = null;
-let heartbeatCheckInterval = null;
+let lastGameWsPing = null;
+let gameWsHeartbeatCheckInterval = null;
 
-// Check for viewer mode in URL
+// URL parameters for viewer options
 const urlParams = new URLSearchParams(window.location.search);
-const isViewerMode = urlParams.get('viewer') === 'true' || urlParams.get('mode') === 'viewer';
-const urlSessionCode = urlParams.get('session');
 // Counter position: off, tl, tr, bl, br (default), t, b, l, r (centered on edge)
 const counterPosition = urlParams.get('counter') || 'br';
 // Counter size: sm (small), md (medium, default), lg (large), xl (extra-large)
 const counterSize = urlParams.get('size') || 'md';
 
 // =============================================================================
-// Heartbeat Monitoring (client-side)
+// Heartbeat Monitoring
 // =============================================================================
 
-function startHeartbeatMonitoring() {
-    lastServerPing = Date.now();
-    stopHeartbeatMonitoring();  // Clear any existing interval
+function startGameWsHeartbeatMonitoring() {
+    lastGameWsPing = Date.now();
+    stopGameWsHeartbeatMonitoring();  // Clear any existing interval
 
-    heartbeatCheckInterval = setInterval(() => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            stopHeartbeatMonitoring();
+    gameWsHeartbeatCheckInterval = setInterval(() => {
+        if (!gameWs || gameWs.readyState !== WebSocket.OPEN) {
+            stopGameWsHeartbeatMonitoring();
             return;
         }
 
-        const timeSinceLastPing = Date.now() - lastServerPing;
+        const timeSinceLastPing = Date.now() - lastGameWsPing;
         const timeout = HEARTBEAT_EXPECTED_INTERVAL + HEARTBEAT_GRACE_PERIOD;
 
         if (timeSinceLastPing > timeout) {
-            console.log(`No server ping for ${Math.round(timeSinceLastPing / 1000)}s, connection likely dead`);
+            console.log(`No server ping for game WS in ${Math.round(timeSinceLastPing / 1000)}s, connection likely dead`);
             // Force close to trigger reconnection
-            ws.close();
-            stopHeartbeatMonitoring();
+            gameWs.close();
+            stopGameWsHeartbeatMonitoring();
         }
     }, 5000);  // Check every 5 seconds
 }
 
-function stopHeartbeatMonitoring() {
-    if (heartbeatCheckInterval) {
-        clearInterval(heartbeatCheckInterval);
-        heartbeatCheckInterval = null;
+function stopGameWsHeartbeatMonitoring() {
+    if (gameWsHeartbeatCheckInterval) {
+        clearInterval(gameWsHeartbeatCheckInterval);
+        gameWsHeartbeatCheckInterval = null;
     }
 }
 
-function onServerPingReceived() {
-    lastServerPing = Date.now();
-}
-
-// =============================================================================
-// Initialization
-// =============================================================================
-
-export function initSync() {
-    // No-op - WebSocket connections are created on demand
-    return true;
-}
-
-export function setupViewerMode() {
-    if (isViewerMode) {
-        document.body.classList.add('viewer-mode');
-
-        if (urlSessionCode) {
-            const uploadScreen = document.getElementById('upload-screen');
-            if (uploadScreen) {
-                uploadScreen.innerHTML = `
-                    <div id="viewer-status">
-                        <h2>Viewer Mode</h2>
-                        <p class="viewer-status-session">Session <strong>${urlSessionCode}</strong></p>
-                        <p class="viewer-status-message">Connecting...</p>
-                    </div>
-                `;
-            }
-
-            setTimeout(() => joinSession(urlSessionCode), 100);
-        }
-    }
-}
-
-function updateViewerStatus(message, isError = false) {
-    const statusMessage = document.querySelector('.viewer-status-message');
-    if (statusMessage) {
-        statusMessage.textContent = message;
-        statusMessage.classList.toggle('error', isError);
-    }
-}
-
-// =============================================================================
-// Session Management
-// =============================================================================
-
-export async function createSession() {
-    return new Promise((resolve, reject) => {
-        const wsUrl = getWsUrl();
-        ws = new WebSocket(`${wsUrl}/ws/host`);
-
-        ws.onopen = () => {
-            console.log("WebSocket connected as host");
-            reconnectAttempts = 0;
-            startHeartbeatMonitoring();
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            // Respond to server pings
-            if (data.type === 'ping') {
-                onServerPingReceived();
-                ws.send(JSON.stringify({ type: 'pong' }));
-                return;
-            }
-
-            if (data.type === 'session_created') {
-                currentSessionCode = data.code;
-                State.setSyncState(true, true, data.code);
-                showConnectedUI();
-                console.log("Session created:", data.code);
-                resolve(data.code);
-            }
-        };
-
-        ws.onerror = () => {
-            stopHeartbeatMonitoring();
-            reject(new Error("Connection failed"));
-        };
-
-        ws.onclose = () => {
-            stopHeartbeatMonitoring();
-            if (State.isSyncConnected()) {
-                handleDisconnect();
-            }
-        };
-    });
-}
-
-async function resumeHostSession(code) {
-    return new Promise((resolve, reject) => {
-        const wsUrl = getWsUrl();
-        ws = new WebSocket(`${wsUrl}/ws/host/${code}`);
-
-        ws.onopen = () => {
-            console.log("WebSocket reconnecting as host...");
-            startHeartbeatMonitoring();
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            // Respond to server pings
-            if (data.type === 'ping') {
-                onServerPingReceived();
-                ws.send(JSON.stringify({ type: 'pong' }));
-                return;
-            }
-
-            if (data.type === 'error') {
-                console.log("Failed to resume session:", data.message);
-                ws.close();
-                reject(new Error(data.message));
-                return;
-            }
-
-            if (data.type === 'session_resumed') {
-                reconnectAttempts = 0;
-                currentSessionCode = data.code;
-                State.setSyncState(true, true, data.code);
-                showConnectedUI();
-                updateSyncStatus("Reconnected");
-                console.log("Session resumed:", data.code);
-                // Send current state immediately after resume
-                setTimeout(() => syncState(), 100);
-                resolve(data.code);
-            }
-        };
-
-        ws.onerror = () => {
-            stopHeartbeatMonitoring();
-            reject(new Error("Connection failed"));
-        };
-
-        ws.onclose = () => {
-            stopHeartbeatMonitoring();
-            if (State.isSyncConnected()) {
-                handleDisconnect();
-            }
-        };
-    });
-}
-
-export async function joinSession(code, isReconnect = false) {
-    code = code.toUpperCase().trim();
-
-    return new Promise((resolve, reject) => {
-        const wsUrl = getWsUrl();
-        ws = new WebSocket(`${wsUrl}/ws/viewer/${code}`);
-
-        ws.onopen = () => {
-            console.log("WebSocket connected as viewer");
-            reconnectAttempts = 0;
-            startHeartbeatMonitoring();
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            // Respond to server pings
-            if (data.type === 'ping') {
-                onServerPingReceived();
-                ws.send(JSON.stringify({ type: 'pong' }));
-                return;
-            }
-
-            if (data.type === 'error') {
-                if (!isReconnect) {
-                    if (isViewerMode) {
-                        updateViewerStatus(data.message || "Failed to join session", true);
-                    } else {
-                        Toast.error(data.message || "Failed to join session");
-                    }
-                    ws.close();
-                    reject(new Error(data.message));
-                } else {
-                    // During reconnect, treat "session not found" as temporary
-                    // (host might not have reconnected yet after server restart)
-                    console.log("Session not found during reconnect, will retry...");
-                    ws.close();
-                    reject(new Error(data.message));
-                }
-                return;
-            }
-
-            if (data.type === 'connected') {
-                currentSessionCode = code;
-                State.setSyncState(true, false, code);
-                showConnectedUI();
-                if (isReconnect) {
-                    const msg = data.host_connected ? "Reconnected" : "Reconnected (host offline)";
-                    if (isViewerMode) {
-                        updateViewerStatus(msg);
-                    } else {
-                        updateSyncStatus(msg);
-                    }
-                }
-                if (data.state && Object.keys(data.state).length > 0) {
-                    applySessionData(data.state);
-                }
-                resolve();
-            }
-
-            if (data.type === 'state_update') {
-                applySessionData(data.state);
-            }
-
-            if (data.type === 'host_disconnected') {
-                if (isViewerMode) {
-                    updateViewerStatus("Host disconnected - waiting...");
-                } else {
-                    updateSyncStatus("Host disconnected - waiting...");
-                }
-            }
-
-            if (data.type === 'host_reconnected') {
-                if (isViewerMode) {
-                    updateViewerStatus("Host reconnected");
-                } else {
-                    updateSyncStatus("Host reconnected");
-                }
-            }
-
-            if (data.type === 'session_expired') {
-                if (isViewerMode) {
-                    updateViewerStatus("Session has expired", true);
-                } else {
-                    Toast.warning("Session has expired");
-                }
-                disconnectSession();
-            }
-        };
-
-        ws.onerror = () => {
-            stopHeartbeatMonitoring();
-            reject(new Error("Connection failed"));
-        };
-
-        ws.onclose = () => {
-            stopHeartbeatMonitoring();
-            if (State.isSyncConnected()) {
-                handleDisconnect();
-            }
-        };
-    });
-}
-
-async function handleDisconnect() {
-    // Prevent multiple concurrent reconnection attempts
-    if (isReconnecting) {
-        return;
-    }
-
-    const sessionCode = currentSessionCode;
-    if (!State.isSyncConnected() || !sessionCode) {
-        return;
-    }
-
-    // Initialize reconnection timer on first attempt
-    if (reconnectStartTime === null) {
-        reconnectStartTime = Date.now();
-    }
-
-    // Check if we've exceeded the max reconnection duration
-    const elapsed = Date.now() - reconnectStartTime;
-    if (elapsed >= MAX_RECONNECT_DURATION) {
-        console.log("Max reconnect duration reached (5 minutes)");
-        reconnectStartTime = null;
-        reconnectAttempts = 0;
-        disconnectSession();
-        return;
-    }
-
-    reconnectAttempts++;
-    // Exponential backoff with cap
-    const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), RECONNECT_MAX_DELAY);
-    const remainingTime = Math.round((MAX_RECONNECT_DURATION - elapsed) / 1000);
-    console.log(`Attempting reconnect ${reconnectAttempts} in ${delay}ms (${remainingTime}s remaining)...`);
-    const reconnectMsg = `Reconnecting... (${remainingTime}s remaining)`;
-    if (isViewerMode) {
-        updateViewerStatus(reconnectMsg);
-    } else {
-        updateSyncStatus(reconnectMsg);
-    }
-
-    isReconnecting = true;
-
-    setTimeout(async () => {
-        // Check again if we should still reconnect
-        if (!State.isSyncConnected() || currentSessionCode !== sessionCode) {
-            isReconnecting = false;
-            return;
-        }
-
-        try {
-            if (State.isStreamerHost()) {
-                await resumeHostSession(sessionCode);
-            } else {
-                await joinSession(sessionCode, true);
-            }
-            // Success - reset counters
-            reconnectStartTime = null;
-            reconnectAttempts = 0;
-        } catch {
-            // Schedule next attempt
-            isReconnecting = false;
-            handleDisconnect();
-            return;
-        }
-        isReconnecting = false;
-    }, delay);
-}
-
-export function disconnectSession() {
-    // Reset reconnection state first to prevent further attempts
-    isReconnecting = false;
-    reconnectStartTime = null;
-    reconnectAttempts = 0;
-    currentSessionCode = null;
-
-    if (ws) {
-        ws.close();
-        ws = null;
-    }
-
-    State.setSyncState(false, false, null);
-    lastSyncedViewport = null;
-
-    showDisconnectedUI();
+function onGameWsPingReceived() {
+    lastGameWsPing = Date.now();
 }
 
 // =============================================================================
 // Sync Logic
 // =============================================================================
 
-export function syncState() {
+function syncState() {
     if (!State.isStreamerHost() || isSyncing) return;
 
-    // Check if any websocket is available
-    const legacyConnected = ws && ws.readyState === WebSocket.OPEN;
-    const newConnected = gameWs && gameWs.readyState === WebSocket.OPEN;
-    if (!legacyConnected && !newConnected) return;
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN) return;
 
     // Throttle syncs to avoid flooding
     if (syncThrottle) return;
@@ -435,34 +102,20 @@ export function syncState() {
         try {
             const state = getFullSyncState();
 
-            // Send to legacy protocol
-            if (legacyConnected) {
-                ws.send(JSON.stringify({
-                    type: 'state_update',
-                    state
-                }));
-            }
-
-            // Send to new protocol
-            if (newConnected) {
-                gameWs.send(JSON.stringify({
-                    type: 'visual_state',
-                    state
-                }));
-            }
+            gameWs.send(JSON.stringify({
+                type: 'visual_state',
+                state
+            }));
         } finally {
             isSyncing = false;
         }
     }, 50);
 }
 
-export function syncViewport() {
+function syncViewport() {
     if (!State.isStreamerHost() || isRenderingGraph) return;
 
-    // Check if any websocket is available
-    const legacyConnected = ws && ws.readyState === WebSocket.OPEN;
-    const newConnected = gameWs && gameWs.readyState === WebSocket.OPEN;
-    if (!legacyConnected && !newConnected) return;
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN) return;
 
     // Viewport sync is handled by the general sync
     syncState();
@@ -1022,7 +675,7 @@ function applyVisualClasses(data) {
         node.classed("viewer-selected", d.id === selectedId);
 
         // Show selection ring in viewer modes (overlay or interactive)
-        if (d.id === selectedId && (isViewerMode || State.isViewerMode())) {
+        if (d.id === selectedId && State.isViewerMode()) {
             if (node.select(".selection-ring").empty()) {
                 const circle = node.select("circle");
                 const r = parseFloat(circle.attr("r")) || 7;
@@ -1151,89 +804,6 @@ function updatePositionsInDOM(d3Nodes) {
             }
         });
     }, 500);
-}
-
-// =============================================================================
-// UI Functions
-// =============================================================================
-
-function showConnectedUI() {
-    const sessionCode = State.getSessionCode();
-
-    // These elements may not exist in the new UI structure
-    const notConnected = document.getElementById('stream-not-connected');
-    if (notConnected) {
-        notConnected.classList.add('hidden');
-    }
-
-    const connected = document.getElementById('stream-connected');
-    if (connected) {
-        connected.classList.remove('hidden');
-    }
-
-    const streamBtn = document.getElementById('stream-btn');
-    if (streamBtn) {
-        streamBtn.classList.add('active');
-    }
-
-    // Update stream URL input if available
-    const streamUrlInput = document.getElementById('stream-url-input');
-    if (streamUrlInput && sessionCode) {
-        const viewerUrl = window.location.origin + window.location.pathname +
-                         '?viewer=true&session=' + sessionCode +
-                         '&counter=br&size=md';
-        streamUrlInput.value = viewerUrl;
-    }
-
-    // Update sync status
-    const syncStatus = document.getElementById('sync-status');
-    if (syncStatus) {
-        syncStatus.classList.remove('disconnected');
-    }
-
-    const syncStatusText = document.getElementById('sync-status-text');
-    if (syncStatusText) {
-        syncStatusText.textContent = 'Connected';
-    }
-}
-
-function updateSyncStatus(message) {
-    const syncStatus = document.getElementById('sync-status');
-    if (syncStatus) {
-        const textSpan = syncStatus.querySelector('span:last-child');
-        if (textSpan) {
-            textSpan.textContent = message;
-        }
-    }
-}
-
-function showDisconnectedUI() {
-    // These elements may not exist in the new UI structure
-    const notConnected = document.getElementById('stream-not-connected');
-    if (notConnected) {
-        notConnected.classList.remove('hidden');
-    }
-
-    const connected = document.getElementById('stream-connected');
-    if (connected) {
-        connected.classList.add('hidden');
-    }
-
-    const streamBtn = document.getElementById('stream-btn');
-    if (streamBtn) {
-        streamBtn.classList.remove('active');
-    }
-
-    // Update sync status text if available
-    const syncStatusText = document.getElementById('sync-status-text');
-    if (syncStatusText) {
-        syncStatusText.textContent = 'Disconnected';
-    }
-
-    const syncStatus = document.getElementById('sync-status');
-    if (syncStatus) {
-        syncStatus.classList.add('disconnected');
-    }
 }
 
 // =============================================================================
@@ -1400,11 +970,11 @@ State.subscribe('graphRenderCompleted', () => {
 });
 
 // =============================================================================
-// New Backend Protocol (Phase 3)
+// Game WebSocket Protocol
 // =============================================================================
 
 /**
- * Connect as host to a game (new backend protocol).
+ * Connect as host to a game.
  * @param {string} gameId - Game UUID
  */
 export async function connectAsHost(gameId) {
@@ -1417,6 +987,7 @@ export async function connectAsHost(gameId) {
         const wsUrl = getWsUrl();
         gameWs = new WebSocket(`${wsUrl}/ws/host/${gameId}`);
         currentGameId = gameId;
+        gameWsIsHost = true;
 
         let authResolved = false;
 
@@ -1430,13 +1001,14 @@ export async function connectAsHost(gameId) {
 
             // Handle ping/pong
             if (data.type === 'ping') {
+                onGameWsPingReceived();
                 gameWs.send(JSON.stringify({ type: 'pong' }));
                 return;
             }
 
             // Auth response
             if (data.type === 'auth_ok') {
-                startHeartbeatMonitoring();
+                startGameWsHeartbeatMonitoring();
                 return;
             }
 
@@ -1475,7 +1047,7 @@ export async function connectAsHost(gameId) {
         };
 
         gameWs.onerror = () => {
-            stopHeartbeatMonitoring();
+            stopGameWsHeartbeatMonitoring();
             if (!authResolved) {
                 authResolved = true;
                 reject(new Error('WebSocket connection failed'));
@@ -1483,7 +1055,7 @@ export async function connectAsHost(gameId) {
         };
 
         gameWs.onclose = () => {
-            stopHeartbeatMonitoring();
+            stopGameWsHeartbeatMonitoring();
             if (State.isSyncConnected() && currentGameId === gameId) {
                 handleGameWsDisconnect();
             }
@@ -1492,7 +1064,7 @@ export async function connectAsHost(gameId) {
 }
 
 /**
- * Connect as viewer to a game (new backend protocol).
+ * Connect as viewer to a game.
  * @param {string} gameId - Game UUID
  */
 export async function connectAsViewer(gameId) {
@@ -1500,11 +1072,12 @@ export async function connectAsViewer(gameId) {
         const wsUrl = getWsUrl();
         gameWs = new WebSocket(`${wsUrl}/ws/viewer/${gameId}`);
         currentGameId = gameId;
+        gameWsIsHost = false;
 
         let connected = false;
 
         gameWs.onopen = () => {
-            startHeartbeatMonitoring();
+            startGameWsHeartbeatMonitoring();
             State.setSyncState(true, false, gameId);
             connected = true;
             resolve();
@@ -1515,6 +1088,7 @@ export async function connectAsViewer(gameId) {
 
             // Handle ping/pong
             if (data.type === 'ping') {
+                onGameWsPingReceived();
                 gameWs.send(JSON.stringify({ type: 'pong' }));
                 return;
             }
@@ -1532,7 +1106,7 @@ export async function connectAsViewer(gameId) {
 
             // Waiting for host
             if (data.type === 'waiting') {
-                updateViewerStatus('Waiting for host to connect...');
+                // Host not connected yet
                 return;
             }
 
@@ -1563,14 +1137,14 @@ export async function connectAsViewer(gameId) {
         };
 
         gameWs.onerror = () => {
-            stopHeartbeatMonitoring();
+            stopGameWsHeartbeatMonitoring();
             if (!connected) {
                 reject(new Error('WebSocket connection failed'));
             }
         };
 
         gameWs.onclose = () => {
-            stopHeartbeatMonitoring();
+            stopGameWsHeartbeatMonitoring();
             if (State.isSyncConnected() && currentGameId === gameId) {
                 handleGameWsDisconnect();
             }
@@ -1579,12 +1153,71 @@ export async function connectAsViewer(gameId) {
 }
 
 /**
- * Handle disconnection from game WebSocket.
+ * Handle disconnection from game WebSocket - attempt reconnection.
  */
-function handleGameWsDisconnect() {
-    // For now, just update state - could add reconnection logic later
-    State.setSyncState(false, false, null);
-    Toast.warning('Disconnected from server');
+async function handleGameWsDisconnect() {
+    // Prevent multiple concurrent reconnection attempts
+    if (gameWsIsReconnecting) {
+        return;
+    }
+
+    const gameId = currentGameId;
+    if (!gameId) {
+        State.setSyncState(false, false, null);
+        return;
+    }
+
+    // Initialize reconnection timer on first attempt
+    if (gameWsReconnectStartTime === null) {
+        gameWsReconnectStartTime = Date.now();
+    }
+
+    // Check if we've exceeded the max reconnection duration
+    const elapsed = Date.now() - gameWsReconnectStartTime;
+    if (elapsed >= MAX_RECONNECT_DURATION) {
+        console.log("Max reconnect duration reached (5 minutes)");
+        gameWsReconnectStartTime = null;
+        gameWsReconnectAttempts = 0;
+        State.setSyncState(false, false, null);
+        Toast.error('Connection lost. Please refresh the page.');
+        return;
+    }
+
+    gameWsReconnectAttempts++;
+    // Exponential backoff with cap
+    const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, gameWsReconnectAttempts - 1), RECONNECT_MAX_DELAY);
+    const remainingTime = Math.round((MAX_RECONNECT_DURATION - elapsed) / 1000);
+    console.log(`Attempting game WS reconnect ${gameWsReconnectAttempts} in ${delay}ms (${remainingTime}s remaining)...`);
+    Toast.warning(`Reconnecting... (${remainingTime}s remaining)`);
+
+    gameWsIsReconnecting = true;
+
+    setTimeout(async () => {
+        // Check if game ID is still valid
+        if (!currentGameId || currentGameId !== gameId) {
+            gameWsIsReconnecting = false;
+            return;
+        }
+
+        try {
+            if (gameWsIsHost) {
+                await connectAsHost(gameId);
+            } else {
+                await connectAsViewer(gameId);
+            }
+            // Success - reset reconnect state
+            gameWsReconnectStartTime = null;
+            gameWsReconnectAttempts = 0;
+            Toast.success('Reconnected to server');
+        } catch (e) {
+            console.log('Reconnection attempt failed:', e.message);
+            // Schedule next attempt
+            gameWsIsReconnecting = false;
+            handleGameWsDisconnect();
+            return;
+        }
+        gameWsIsReconnecting = false;
+    }, delay);
 }
 
 /**
@@ -1652,66 +1285,20 @@ function applyPositionsFromServer(positions) {
 }
 
 /**
- * Send visual state to viewers (host only).
- */
-export function sendVisualState() {
-    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
-
-    gameWs.send(JSON.stringify({
-        type: 'visual_state',
-        state: getFullSyncState()
-    }));
-}
-
-/**
- * Send positions update to server (host only).
- */
-export function sendPositionsUpdate(positions) {
-    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
-
-    gameWs.send(JSON.stringify({
-        type: 'positions_update',
-        positions
-    }));
-}
-
-/**
- * Send tag update to server (host only).
- */
-export function sendTagUpdate(zone, tags) {
-    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
-
-    gameWs.send(JSON.stringify({
-        type: 'tag_update',
-        zone,
-        tags
-    }));
-}
-
-/**
- * Send manual discovery to server (host only).
- */
-export function sendManualDiscovery(source, target) {
-    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
-
-    gameWs.send(JSON.stringify({
-        type: 'manual_discovery',
-        source,
-        target
-    }));
-}
-
-/**
- * Disconnect from current session/game.
+ * Disconnect from current game.
  */
 export function disconnect() {
-    // Close new protocol connection
+    // Reset reconnection state
+    gameWsIsReconnecting = false;
+    gameWsReconnectStartTime = null;
+    gameWsReconnectAttempts = 0;
+
     if (gameWs) {
         gameWs.close();
         gameWs = null;
     }
     currentGameId = null;
 
-    // Also close legacy connection if any
-    disconnectSession();
+    State.setSyncState(false, false, null);
+    lastSyncedViewport = null;
 }
