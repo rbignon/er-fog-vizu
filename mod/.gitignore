@@ -1,0 +1,12 @@
+# Build artifacts
+/target/
+
+# IDE
+/.idea/
+/.vscode/
+
+# Cargo lock (optional for libraries, but we're a binary)
+# Cargo.lock
+
+# Routes output (generated files)
+/routes/
