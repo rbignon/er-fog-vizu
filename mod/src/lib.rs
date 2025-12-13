@@ -29,6 +29,7 @@ mod goods_events;
 mod route;
 mod tracker;
 mod ui;
+mod websocket;
 mod zone_names;
 
 // =============================================================================

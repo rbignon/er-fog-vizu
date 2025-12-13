@@ -43,6 +43,7 @@ Edit `route_tracker_config.toml` to configure:
 | `ui.rs` | ImGui overlay rendering |
 | `config.rs` | TOML config parsing, hotkey handling |
 | `route.rs` | Data structures, JSON serialization |
+| `websocket.rs` | WebSocket client for server integration |
 | `coordinate_transformer.rs` | Local tile → global world coordinates |
 | `zone_names.rs` | map_id → zone name mapping |
 | `custom_pointers.rs` | Memory pointers (death count, Torrent, event flags) |
@@ -56,9 +57,29 @@ Fog gate traversal is detected via animation ID 60060. The tracker captures:
 2. Exit position + map_id when animation ends
 3. Zone names derived from map_ids
 
-## Integration with er-fog-vizu (TODO)
+## Integration with er-fog-vizu
 
-The mod will connect to the er-fog-vizu server via WebSocket to:
-- Send discovery events in real-time
-- Sync with the web visualization
-- Allow viewers to see progress live
+The mod connects to the er-fog-vizu server via WebSocket to automatically send fog gate discoveries in real-time.
+
+### Setup
+
+1. Log in to the fog-vizu website with your Twitch account
+2. Create a new game from your spoiler log
+3. Copy your API token and game ID from the dashboard
+4. Edit `route_tracker_config.toml` and fill in the `[server]` section:
+
+```toml
+[server]
+enabled = true
+url = "wss://fog-vizu.example.com"
+api_token = "your-api-token-here"
+game_id = "your-game-uuid-here"
+auto_reconnect = true
+```
+
+### Features
+
+- Automatic discovery sync when traversing fog gates
+- Connection status shown in the UI overlay
+- Auto-reconnect with exponential backoff
+- Works even if you start playing before the website is ready
