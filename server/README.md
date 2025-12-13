@@ -1,0 +1,165 @@
+# Fog Gate Visualizer - Backend Server
+
+FastAPI backend server with PostgreSQL, Twitch OAuth, and WebSocket sync.
+
+## Development Setup
+
+### Prerequisites
+
+- Python 3.11+
+- PostgreSQL 15+
+
+### Installation
+
+```bash
+cd server
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or: venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Configuration
+
+Create a `.env` file:
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+Required environment variables:
+
+```env
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/fogvizu
+TWITCH_CLIENT_ID=your_twitch_client_id
+TWITCH_CLIENT_SECRET=your_twitch_client_secret
+TWITCH_REDIRECT_URI=http://localhost:8001/auth/twitch/callback
+SECRET_KEY=your_random_secret_key
+```
+
+### Database Setup
+
+```bash
+# Create database
+createdb fogvizu
+
+# Run migrations
+alembic upgrade head
+```
+
+### Running
+
+```bash
+# Development (with auto-reload)
+uvicorn fogvizu.main:app --reload --port 8001
+
+# Or using the entry point
+fogvizu
+```
+
+The server runs at http://localhost:8001
+
+### Linting
+
+```bash
+# Run pre-commit on all files
+pre-commit run --all-files
+
+# Or run ruff directly
+ruff check .
+ruff format .
+```
+
+### Testing
+
+```bash
+pytest
+```
+
+## Production Deployment
+
+### Systemd Service
+
+```bash
+# Copy service file
+sudo cp fog-vizu.service /etc/systemd/system/
+
+# Edit paths if needed
+sudo systemctl edit fog-vizu
+
+# Enable and start
+sudo systemctl enable fog-vizu
+sudo systemctl start fog-vizu
+
+# Check status
+sudo systemctl status fog-vizu
+journalctl -u fog-vizu -f
+```
+
+### Nginx
+
+Add to your nginx server block:
+
+```bash
+# Option 1: Include the config file
+include /var/www/fog-vizu/server/fog-vizu.nginx.conf;
+
+# Option 2: Copy content to your site config
+sudo nano /etc/nginx/sites-available/your-site
+```
+
+Then reload nginx:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Production Checklist
+
+- [ ] Set strong `SECRET_KEY` in `.env`
+- [ ] Configure `CORS_ORIGINS` for your domain
+- [ ] Set up PostgreSQL with proper credentials
+- [ ] Configure Twitch OAuth with production redirect URI
+- [ ] Enable HTTPS in nginx
+- [ ] Set appropriate file permissions (`chown www-data:www-data`)
+
+## API Documentation
+
+Once running, visit:
+- Swagger UI: http://localhost:8001/docs
+- ReDoc: http://localhost:8001/redoc
+
+## Project Structure
+
+```
+server/
+├── fogvizu/
+│   ├── __init__.py
+│   ├── main.py          # FastAPI app entry point
+│   ├── config.py        # Settings (pydantic-settings)
+│   ├── database.py      # SQLAlchemy models
+│   ├── models.py        # Pydantic schemas
+│   ├── auth.py          # Twitch OAuth
+│   ├── game_logic.py    # Discovery propagation
+│   ├── websocket.py     # WebSocket handlers
+│   └── api/
+│       ├── __init__.py
+│       ├── auth.py      # /auth/* routes
+│       ├── users.py     # /api/users/* routes
+│       └── games.py     # /api/games/* routes
+├── alembic/             # Database migrations
+├── tests/
+├── pyproject.toml
+├── .env.example
+├── fog-vizu.service     # Systemd unit
+└── fog-vizu.nginx.conf  # Nginx config
+```

@@ -16,28 +16,28 @@ let selectedTagFilters = new Set();
 export function renderGraph(preservePositions = false) {
     const graphData = State.getGraphData();
     if (!graphData) return;
-    
+
     const explorationMode = State.isExplorationMode();
     const explorationState = State.getExplorationState();
-    
+
     // Propagate discoveries through pre-existing connections
     if (explorationMode && explorationState) {
         Exploration.propagatePreexistingDiscoveries();
         State.saveExplorationToStorage();
     }
-    
+
     // Clear previous graph
-    d3.select("svg").selectAll("*").remove();
-    
+    d3.select("#graph-container svg").selectAll("*").remove();
+
     const width = window.innerWidth;
     const height = window.innerHeight;
-    
-    const svg = d3.select("svg")
+
+    const svg = d3.select("#graph-container svg")
         .attr("viewBox", [0, 0, width, height]);
-    
+
     // Create container for zoom
     const container = svg.append("g");
-    
+
     // Zoom behavior
     const zoom = d3.zoom()
         .scaleExtent([0.1, 4])
@@ -328,7 +328,7 @@ export function renderGraph(preservePositions = false) {
         .attr("dx", 12)
         .attr("dy", 4)
         .text(d => getNodeLabel(d, explorationMode, explorationState));
-    
+
     // Setup interactions
     setupTooltip(node, nodeConnections, explorationMode, explorationState, placeholderMap, nodeMap, visibleLinks);
     setupNodeClick(node, svg, nodeConnections, explorationMode, explorationState, placeholderMap, visibleLinks);
@@ -483,7 +483,7 @@ function toggleTagFilter(tagId) {
 }
 
 function applyTagHighlight() {
-    const svg = d3.select("svg");
+    const svg = d3.select("#graph-container svg");
     const nodes = svg.selectAll(".node");
     const links = svg.selectAll(".link");
     const explorationState = State.getExplorationState();
@@ -1348,7 +1348,7 @@ function setupSearch(node, link, allNodes) {
  * @param {number} duration - Animation duration in ms (default 500)
  */
 export function centerOnNode(nodeId, duration = 500) {
-    const svg = d3.select("svg");
+    const svg = d3.select("#graph-container svg");
     const container = svg.select("g");
     const nodes = container.selectAll(".node");
 
@@ -1396,7 +1396,7 @@ export function centerOnNode(nodeId, duration = 500) {
 
 State.subscribe('nodeTagsUpdated', ({ nodeId, tags }) => {
     // Update node label in graph
-    const svg = d3.select("svg");
+    const svg = d3.select("#graph-container svg");
     const explorationState = State.getExplorationState();
 
     svg.selectAll(".node")

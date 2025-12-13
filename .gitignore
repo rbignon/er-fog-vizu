@@ -1,6 +1,33 @@
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+*.env.local
+
+# Database
+*.db
 
 # Ignore spoiler logs in root (keep demo_log.txt in data/)
 /*.txt
-!requirements.txt
 /*.svg
+
+# Rust (future mod/)
+target/
+Cargo.lock

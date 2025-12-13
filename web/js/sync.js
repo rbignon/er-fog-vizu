@@ -4,6 +4,7 @@
 
 import * as State from './state.js';
 import * as Toast from './toast.js';
+import * as Auth from './auth.js';
 
 // =============================================================================
 // Configuration
@@ -27,6 +28,10 @@ let lastSyncedViewport = null;
 let isRenderingGraph = false;
 let isSyncing = false;
 let currentSessionCode = null;  // Track session code for reconnection
+
+// New backend protocol variables
+let gameWs = null;
+let currentGameId = null;
 
 // Client-side heartbeat monitoring (detect if server stops sending pings)
 const HEARTBEAT_EXPECTED_INTERVAL = 15000;  // Server sends ping every 15s
@@ -413,7 +418,12 @@ export function disconnectSession() {
 // =============================================================================
 
 export function syncState() {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !State.isStreamerHost() || isSyncing) return;
+    if (!State.isStreamerHost() || isSyncing) return;
+
+    // Check if any websocket is available
+    const legacyConnected = ws && ws.readyState === WebSocket.OPEN;
+    const newConnected = gameWs && gameWs.readyState === WebSocket.OPEN;
+    if (!legacyConnected && !newConnected) return;
 
     // Throttle syncs to avoid flooding
     if (syncThrottle) return;
@@ -423,10 +433,23 @@ export function syncState() {
 
         isSyncing = true;
         try {
-            ws.send(JSON.stringify({
-                type: 'state_update',
-                state: getFullSyncState()
-            }));
+            const state = getFullSyncState();
+
+            // Send to legacy protocol
+            if (legacyConnected) {
+                ws.send(JSON.stringify({
+                    type: 'state_update',
+                    state
+                }));
+            }
+
+            // Send to new protocol
+            if (newConnected) {
+                gameWs.send(JSON.stringify({
+                    type: 'visual_state',
+                    state
+                }));
+            }
         } finally {
             isSyncing = false;
         }
@@ -434,7 +457,12 @@ export function syncState() {
 }
 
 export function syncViewport() {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !State.isStreamerHost() || isRenderingGraph) return;
+    if (!State.isStreamerHost() || isRenderingGraph) return;
+
+    // Check if any websocket is available
+    const legacyConnected = ws && ws.readyState === WebSocket.OPEN;
+    const newConnected = gameWs && gameWs.readyState === WebSocket.OPEN;
+    if (!legacyConnected && !newConnected) return;
 
     // Viewport sync is handled by the general sync
     syncState();
@@ -706,7 +734,11 @@ function buildGraphFromSessionData(data) {
 function applyViewport(vp) {
     if (!vp || vp.x === undefined || isRenderingGraph) return;
 
-    const svg = d3.select("svg");
+    // Only sync viewport in overlay mode (OBS)
+    // Interactive viewers control their own viewport
+    if (!State.isOverlayMode()) return;
+
+    const svg = d3.select("#graph-container svg");
     const g = svg.select("g");
 
     if (!svg.node() || !g.node()) {
@@ -750,6 +782,87 @@ function applyViewport(vp) {
     g.transition()
         .duration(300)
         .attr("transform", `translate(${x},${y}) scale(${vp.k})`);
+}
+
+/**
+ * Apply only positions and discovery state from visual_state (for interactive viewers).
+ * Ignores selection, highlights, and viewport.
+ */
+function applyPositionsAndDiscoveryOnly(data) {
+    if (!data.nodes) return;
+
+    const simulation = State.getSimulation();
+    const d3Nodes = simulation ? simulation.nodes() : [];
+    let positionsChanged = false;
+    let explorationChanged = false;
+
+    const explorationState = State.getExplorationState();
+
+    // Save and apply node positions
+    for (const [id, nodeState] of Object.entries(data.nodes)) {
+        if (nodeState.x !== undefined && nodeState.y !== undefined &&
+            !isNaN(nodeState.x) && !isNaN(nodeState.y) && isFinite(nodeState.x) && isFinite(nodeState.y)) {
+            State.saveNodePosition(id, nodeState.x, nodeState.y);
+
+            const simNode = d3Nodes.find(n => n.id === id);
+            if (simNode && (Math.abs(simNode.x - nodeState.x) > 1 || Math.abs(simNode.y - nodeState.y) > 1)) {
+                simNode.x = nodeState.x;
+                simNode.y = nodeState.y;
+                simNode.fx = nodeState.x;
+                simNode.fy = nodeState.y;
+                positionsChanged = true;
+            }
+        }
+
+        // Update discovery state
+        if (explorationState && !nodeState.isPlaceholder) {
+            const wasDiscovered = explorationState.discovered.has(id);
+            const isDiscovered = nodeState.discovered || false;
+            if (wasDiscovered !== isDiscovered) {
+                explorationChanged = true;
+                if (isDiscovered) {
+                    explorationState.discovered.add(id);
+                } else {
+                    explorationState.discovered.delete(id);
+                }
+            }
+
+            // Update tags
+            const oldTags = explorationState.tags.get(id) || [];
+            const newTags = nodeState.tags || [];
+            if (JSON.stringify(oldTags) !== JSON.stringify(newTags)) {
+                explorationChanged = true;
+                if (newTags.length > 0) {
+                    explorationState.tags.set(id, newTags);
+                } else {
+                    explorationState.tags.delete(id);
+                }
+            }
+        }
+    }
+
+    // Sync discovered links
+    if (data.discoveredLinks && Array.isArray(data.discoveredLinks) && explorationState) {
+        const newDiscoveredLinks = new Set(data.discoveredLinks);
+        const currentLinks = explorationState.discoveredLinks || new Set();
+
+        if (newDiscoveredLinks.size !== currentLinks.size ||
+            [...newDiscoveredLinks].some(l => !currentLinks.has(l))) {
+            explorationChanged = true;
+            explorationState.discoveredLinks = newDiscoveredLinks;
+        }
+    }
+
+    // Apply position changes to DOM
+    if (positionsChanged) {
+        updatePositionsInDOM(d3Nodes);
+    }
+
+    // Re-render if discovery changed
+    if (explorationChanged) {
+        State.saveAllNodePositions();
+        State.emit('graphNeedsRender', { preservePositions: true });
+    }
 }
 
 function applyVisualState(data) {
@@ -908,7 +1021,8 @@ function applyVisualClasses(data) {
         // Handle selection separately - apply even if nodeState doesn't exist
         node.classed("viewer-selected", d.id === selectedId);
 
-        if (d.id === selectedId && isViewerMode) {
+        // Show selection ring in viewer modes (overlay or interactive)
+        if (d.id === selectedId && (isViewerMode || State.isViewerMode())) {
             if (node.select(".selection-ring").empty()) {
                 const circle = node.select("circle");
                 const r = parseFloat(circle.attr("r")) || 7;
@@ -940,9 +1054,10 @@ function applyVisualClasses(data) {
     updateViewerDiscoveryCounter(data);
 }
 
-// Update viewer discovery counter (OBS overlay)
+// Update viewer discovery counter (OBS overlay only)
 function updateViewerDiscoveryCounter(data) {
-    if (!isViewerMode) return;
+    // Counter only shows in overlay mode (OBS browser source)
+    if (!State.isOverlayMode()) return;
 
     const counter = document.getElementById('viewer-discovery-counter');
     if (!counter) return;
@@ -1045,22 +1160,41 @@ function updatePositionsInDOM(d3Nodes) {
 function showConnectedUI() {
     const sessionCode = State.getSessionCode();
 
-    document.getElementById('stream-not-connected').classList.add('hidden');
-    document.getElementById('stream-connected').classList.remove('hidden');
+    // These elements may not exist in the new UI structure
+    const notConnected = document.getElementById('stream-not-connected');
+    if (notConnected) {
+        notConnected.classList.add('hidden');
+    }
+
+    const connected = document.getElementById('stream-connected');
+    if (connected) {
+        connected.classList.remove('hidden');
+    }
 
     const streamBtn = document.getElementById('stream-btn');
     if (streamBtn) {
         streamBtn.classList.add('active');
     }
 
-    const viewerUrl = window.location.origin + window.location.pathname +
-                     '?viewer=true&session=' + sessionCode +
-                     '&counter=br&size=md';
-    document.getElementById('stream-url-input').value = viewerUrl;
+    // Update stream URL input if available
+    const streamUrlInput = document.getElementById('stream-url-input');
+    if (streamUrlInput && sessionCode) {
+        const viewerUrl = window.location.origin + window.location.pathname +
+                         '?viewer=true&session=' + sessionCode +
+                         '&counter=br&size=md';
+        streamUrlInput.value = viewerUrl;
+    }
 
+    // Update sync status
     const syncStatus = document.getElementById('sync-status');
-    syncStatus.classList.remove('disconnected');
-    syncStatus.querySelector('span:last-child').textContent = 'Session active';
+    if (syncStatus) {
+        syncStatus.classList.remove('disconnected');
+    }
+
+    const syncStatusText = document.getElementById('sync-status-text');
+    if (syncStatusText) {
+        syncStatusText.textContent = 'Connected';
+    }
 }
 
 function updateSyncStatus(message) {
@@ -1074,12 +1208,31 @@ function updateSyncStatus(message) {
 }
 
 function showDisconnectedUI() {
-    document.getElementById('stream-not-connected').classList.remove('hidden');
-    document.getElementById('stream-connected').classList.add('hidden');
+    // These elements may not exist in the new UI structure
+    const notConnected = document.getElementById('stream-not-connected');
+    if (notConnected) {
+        notConnected.classList.remove('hidden');
+    }
+
+    const connected = document.getElementById('stream-connected');
+    if (connected) {
+        connected.classList.add('hidden');
+    }
 
     const streamBtn = document.getElementById('stream-btn');
     if (streamBtn) {
         streamBtn.classList.remove('active');
+    }
+
+    // Update sync status text if available
+    const syncStatusText = document.getElementById('sync-status-text');
+    if (syncStatusText) {
+        syncStatusText.textContent = 'Disconnected';
+    }
+
+    const syncStatus = document.getElementById('sync-status');
+    if (syncStatus) {
+        syncStatus.classList.add('disconnected');
     }
 }
 
@@ -1095,33 +1248,58 @@ export function initStreamUI() {
     }
 
     const streamBtn = document.getElementById('stream-btn');
+    const urlInput = document.getElementById('stream-url-input');
+    const counterPositionSelect = document.getElementById('counter-position');
+    const counterSizeSelect = document.getElementById('counter-size');
+
+    // Generate OBS URL based on current settings
+    function updateStreamUrl() {
+        const user = Auth.getUser();
+        const gameId = State.getGameId();
+
+        if (!user || !gameId) {
+            if (urlInput) urlInput.value = 'Load a game first';
+            return;
+        }
+
+        const position = counterPositionSelect?.value || 'br';
+        const size = counterSizeSelect?.value || 'md';
+
+        const baseUrl = `${window.location.origin}/watch/${user.username}/${gameId}`;
+        const params = new URLSearchParams({
+            overlay: 'true',
+            counter: position,
+            size: size
+        });
+
+        if (urlInput) urlInput.value = `${baseUrl}?${params.toString()}`;
+    }
+
+    // Open modal and update URL
     if (streamBtn) {
         streamBtn.addEventListener('click', () => {
+            updateStreamUrl();
+            streamModal.classList.remove('hidden');
             streamModal.classList.add('visible');
         });
     }
 
-    // All close buttons
-    const closeModal = () => streamModal.classList.remove('visible');
+    // Update URL when options change
+    counterPositionSelect?.addEventListener('change', updateStreamUrl);
+    counterSizeSelect?.addEventListener('change', updateStreamUrl);
 
+    // Close modal buttons
+    const closeModal = () => {
+        streamModal.classList.remove('visible');
+        streamModal.classList.add('hidden');
+    };
     document.getElementById('close-stream-modal')?.addEventListener('click', closeModal);
-    document.getElementById('close-not-connected-btn')?.addEventListener('click', closeModal);
-    document.getElementById('close-connected-btn')?.addEventListener('click', closeModal);
+    document.getElementById('close-stream-modal-btn')?.addEventListener('click', closeModal);
 
-    const startSessionBtn = document.getElementById('start-session-btn');
-    if (startSessionBtn) {
-        startSessionBtn.addEventListener('click', createSession);
-    }
-
-    const endSessionBtn = document.getElementById('end-session-btn');
-    if (endSessionBtn) {
-        endSessionBtn.addEventListener('click', disconnectSession);
-    }
-
+    // Copy URL button
     const copyUrlBtn = document.getElementById('copy-url-btn');
     if (copyUrlBtn) {
         copyUrlBtn.addEventListener('click', () => {
-            const urlInput = document.getElementById('stream-url-input');
             if (urlInput) {
                 urlInput.select();
                 navigator.clipboard.writeText(urlInput.value).then(() => {
@@ -1133,9 +1311,10 @@ export function initStreamUI() {
         });
     }
 
+    // Close on backdrop click
     streamModal.addEventListener('click', (e) => {
         if (e.target.id === 'stream-modal') {
-            streamModal.classList.remove('visible');
+            closeModal();
         }
     });
 }
@@ -1219,3 +1398,320 @@ State.subscribe('graphRenderCompleted', () => {
         syncState();
     }
 });
+
+// =============================================================================
+// New Backend Protocol (Phase 3)
+// =============================================================================
+
+/**
+ * Connect as host to a game (new backend protocol).
+ * @param {string} gameId - Game UUID
+ */
+export async function connectAsHost(gameId) {
+    const token = Auth.getToken();
+    if (!token) {
+        throw new Error('Not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+        const wsUrl = getWsUrl();
+        gameWs = new WebSocket(`${wsUrl}/ws/host/${gameId}`);
+        currentGameId = gameId;
+
+        let authResolved = false;
+
+        gameWs.onopen = () => {
+            // Send auth message
+            gameWs.send(JSON.stringify({ type: 'auth', token }));
+        };
+
+        gameWs.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // Handle ping/pong
+            if (data.type === 'ping') {
+                gameWs.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+
+            // Auth response
+            if (data.type === 'auth_ok') {
+                startHeartbeatMonitoring();
+                return;
+            }
+
+            if (data.type === 'auth_error') {
+                authResolved = true;
+                reject(new Error(data.message || 'Authentication failed'));
+                gameWs.close();
+                return;
+            }
+
+            // Game state received after auth
+            if (data.type === 'game_state') {
+                // Game state already loaded via API, this is for confirmation
+                authResolved = true;
+                State.setSyncState(true, true, gameId);
+                resolve();
+                return;
+            }
+
+            // Error from server
+            if (data.type === 'error') {
+                if (!authResolved) {
+                    authResolved = true;
+                    reject(new Error(data.message || 'Connection error'));
+                } else {
+                    Toast.error(data.message || 'WebSocket error');
+                }
+                return;
+            }
+
+            // Discovery from mod
+            if (data.type === 'discovery') {
+                handleDiscoveryFromServer(data.propagated);
+                return;
+            }
+        };
+
+        gameWs.onerror = () => {
+            stopHeartbeatMonitoring();
+            if (!authResolved) {
+                authResolved = true;
+                reject(new Error('WebSocket connection failed'));
+            }
+        };
+
+        gameWs.onclose = () => {
+            stopHeartbeatMonitoring();
+            if (State.isSyncConnected() && currentGameId === gameId) {
+                handleGameWsDisconnect();
+            }
+        };
+    });
+}
+
+/**
+ * Connect as viewer to a game (new backend protocol).
+ * @param {string} gameId - Game UUID
+ */
+export async function connectAsViewer(gameId) {
+    return new Promise((resolve, reject) => {
+        const wsUrl = getWsUrl();
+        gameWs = new WebSocket(`${wsUrl}/ws/viewer/${gameId}`);
+        currentGameId = gameId;
+
+        let connected = false;
+
+        gameWs.onopen = () => {
+            startHeartbeatMonitoring();
+            State.setSyncState(true, false, gameId);
+            connected = true;
+            resolve();
+        };
+
+        gameWs.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // Handle ping/pong
+            if (data.type === 'ping') {
+                gameWs.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+
+            // Error
+            if (data.type === 'error') {
+                if (!connected) {
+                    reject(new Error(data.message || 'Connection error'));
+                    gameWs.close();
+                } else {
+                    Toast.error(data.message || 'WebSocket error');
+                }
+                return;
+            }
+
+            // Waiting for host
+            if (data.type === 'waiting') {
+                updateViewerStatus('Waiting for host to connect...');
+                return;
+            }
+
+            // Visual state from host
+            if (data.type === 'visual_state') {
+                if (State.isOverlayMode()) {
+                    // Overlay mode: apply everything (selection, highlights, viewport, positions)
+                    applySessionData(data.state);
+                } else {
+                    // Interactive viewer: only sync positions and discovery, ignore highlights/selection/viewport
+                    applyPositionsAndDiscoveryOnly(data.state);
+                }
+                return;
+            }
+
+            // Positions update from host
+            if (data.type === 'positions_update') {
+                // All viewers sync positions
+                applyPositionsFromServer(data.positions);
+                return;
+            }
+
+            // Discovery from server
+            if (data.type === 'discovery') {
+                handleDiscoveryFromServer(data.propagated);
+                return;
+            }
+        };
+
+        gameWs.onerror = () => {
+            stopHeartbeatMonitoring();
+            if (!connected) {
+                reject(new Error('WebSocket connection failed'));
+            }
+        };
+
+        gameWs.onclose = () => {
+            stopHeartbeatMonitoring();
+            if (State.isSyncConnected() && currentGameId === gameId) {
+                handleGameWsDisconnect();
+            }
+        };
+    });
+}
+
+/**
+ * Handle disconnection from game WebSocket.
+ */
+function handleGameWsDisconnect() {
+    // For now, just update state - could add reconnection logic later
+    State.setSyncState(false, false, null);
+    Toast.warning('Disconnected from server');
+}
+
+/**
+ * Handle discovery messages from server (mod or other source).
+ */
+function handleDiscoveryFromServer(propagated) {
+    if (!propagated || !Array.isArray(propagated)) return;
+
+    const explorationState = State.getExplorationState();
+    let changed = false;
+
+    for (const link of propagated) {
+        const { source, target } = link;
+
+        // Add to discovered
+        if (!explorationState.discovered.has(source)) {
+            explorationState.discovered.add(source);
+            changed = true;
+        }
+        if (!explorationState.discovered.has(target)) {
+            explorationState.discovered.add(target);
+            changed = true;
+        }
+
+        // Add to discovered links
+        const linkId = `${source}|${target}`;
+        if (!explorationState.discoveredLinks.has(linkId)) {
+            explorationState.discoveredLinks.add(linkId);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        // Re-render graph to show newly discovered areas
+        State.emit('graphNeedsRender', { preservePositions: true });
+        Toast.success('New area discovered!');
+    }
+}
+
+/**
+ * Apply positions update from server (viewer side).
+ */
+function applyPositionsFromServer(positions) {
+    if (!positions) return;
+
+    for (const [nodeId, pos] of Object.entries(positions)) {
+        State.saveNodePosition(nodeId, pos.x, pos.y);
+    }
+
+    // Update positions in DOM
+    const simulation = State.getSimulation();
+    if (simulation) {
+        const d3Nodes = simulation.nodes();
+        for (const node of d3Nodes) {
+            const pos = positions[node.id];
+            if (pos) {
+                node.x = pos.x;
+                node.y = pos.y;
+                node.fx = pos.x;
+                node.fy = pos.y;
+            }
+        }
+        updatePositionsInDOM(d3Nodes);
+    }
+}
+
+/**
+ * Send visual state to viewers (host only).
+ */
+export function sendVisualState() {
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
+
+    gameWs.send(JSON.stringify({
+        type: 'visual_state',
+        state: getFullSyncState()
+    }));
+}
+
+/**
+ * Send positions update to server (host only).
+ */
+export function sendPositionsUpdate(positions) {
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
+
+    gameWs.send(JSON.stringify({
+        type: 'positions_update',
+        positions
+    }));
+}
+
+/**
+ * Send tag update to server (host only).
+ */
+export function sendTagUpdate(zone, tags) {
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
+
+    gameWs.send(JSON.stringify({
+        type: 'tag_update',
+        zone,
+        tags
+    }));
+}
+
+/**
+ * Send manual discovery to server (host only).
+ */
+export function sendManualDiscovery(source, target) {
+    if (!gameWs || gameWs.readyState !== WebSocket.OPEN || !State.isStreamerHost()) return;
+
+    gameWs.send(JSON.stringify({
+        type: 'manual_discovery',
+        source,
+        target
+    }));
+}
+
+/**
+ * Disconnect from current session/game.
+ */
+export function disconnect() {
+    // Close new protocol connection
+    if (gameWs) {
+        gameWs.close();
+        gameWs = null;
+    }
+    currentGameId = null;
+
+    // Also close legacy connection if any
+    disconnectSession();
+}

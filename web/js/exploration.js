@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as State from './state.js';
+import * as Api from './api.js';
 
 // ============================================================
 // DISCOVERY LOGIC
@@ -87,6 +88,16 @@ export function discoverArea(areaId, fromNodeId = null, viaLink = null) {
     discoverWithPreexisting(areaId, fromNodeId, viaLink);
     State.saveExplorationToStorage();
     State.emit('graphNeedsRender', { preservePositions: true, centerOnNodeId: areaId });
+
+    // Persist discovery to server in online mode
+    if (State.getBackendMode() === 'online' && fromNodeId) {
+        const gameId = State.getGameId();
+        if (gameId) {
+            // Fire and forget - don't await, just persist in background
+            Api.createDiscovery(gameId, { source: fromNodeId, target: areaId })
+                .catch(err => console.error('Failed to persist discovery:', err));
+        }
+    }
 }
 
 /**

@@ -6,19 +6,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Elden Ring Fog Gate Randomizer Visualizer - a web-based tool to visualize spoiler logs from the Fog Gate Randomizer mod. Frontend with Python WebSocket backend for streamer sync.
 
+## Project Structure
+
+```
+er-fog-vizu/
+├── web/                    # Frontend (vanilla JS + D3.js)
+│   ├── index.html
+│   ├── js/                 # ES6 modules
+│   └── css/
+├── server/                 # Backend (Python FastAPI)
+│   ├── pyproject.toml
+│   ├── fogvizu/            # Python module
+│   │   ├── main.py
+│   │   ├── api/
+│   │   └── ...
+│   ├── alembic/            # DB migrations
+│   └── README.md           # Server setup instructions
+├── docs/                   # Specifications
+│   ├── SPEC_BACKEND.md     # Backend architecture & API
+│   └── SPEC_FOG_VIZU_INTEGRATION.md  # Mod integration design
+├── mod/                    # Elden Ring mod (Rust) - future
+└── server.py               # Legacy simple server (deprecated)
+```
+
 ## Running the Application
 
+### Backend Server (with database, auth, mod integration)
+
 ```bash
-pip install -r requirements.txt
-python server.py              # FastAPI server on port 8001
-python server.py --port 8080  # Custom port
+cd server
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env        # Configure environment
+alembic upgrade head        # Run migrations
+uvicorn fogvizu.main:app --reload --port 8001
+```
+
+See `server/README.md` for detailed instructions.
+
+### Legacy Mode (simple, no database)
+
+```bash
+python server.py            # FastAPI server on port 8001
 ```
 
 Open `http://localhost:8001` in browser. No build step required - ES6 modules run directly.
 
 ## Architecture
 
-**State Management** (`src/js/state.js`):
+**State Management** (`web/js/state.js`):
 - Centralized state with pub/sub event bus
 - `State.subscribe('eventName', callback)` for inter-module communication
 - Setters emit events automatically (e.g., `setExplorationMode()` emits `explorationModeChanged`)
@@ -32,10 +69,15 @@ Open `http://localhost:8001` in browser. No build step required - ES6 modules ru
 - `exploration.js` - Discovery logic, pathfinding, preexisting propagation
 - `sync.js` - WebSocket streamer sync (host/viewer modes)
 
-**Backend** (`server.py`):
-- FastAPI with WebSocket support
-- Serves static files from `src/`
-- In-memory session management (no persistence needed)
+**Backend** (`server/fogvizu/`):
+- FastAPI with REST API and WebSocket support
+- PostgreSQL database with SQLAlchemy ORM (async)
+- Twitch OAuth authentication
+- Serves static files from `web/`
+
+**Legacy Backend** (`server.py`):
+- Simple FastAPI with in-memory session management
+- No database, no authentication
 
 **Data Flow**: File Upload → Parser → State → Graph Render → UI Events → State Updates → WebSocket Sync
 
@@ -141,5 +183,7 @@ Computed in `computeOneWayLinks()`: a link is one-way if no reverse link exists.
 
 ## Deployment
 
-- `fog-vizu.service` - systemd unit file
-- `fog-vizu.nginx.conf` - nginx reverse proxy config with WebSocket support
+See `server/README.md` for production deployment instructions including:
+- Systemd service configuration (`server/fog-vizu.service`)
+- Nginx reverse proxy (`server/fog-vizu.nginx.conf`)
+- Environment configuration

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elden Ring Fog Randomizer - Area Graph</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+    <!-- =========================================================================
+         Landing Page (/)
+         ========================================================================= -->
+    <div id="landing-page" class="page">
+        <div class="landing-content">
+            <h1>Fog Gate Randomizer</h1>
+            <p class="subtitle">Spoiler Log Visualizer</p>
+
+            <div class="landing-description">
+                <p>Track your Elden Ring Fog Gate Randomizer progress and share it with your stream audience in real-time.</p>
+            </div>
+
+            <div class="landing-actions">
+                <button id="login-twitch-btn" class="btn-twitch">
+                    <svg class="twitch-icon" viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
+                    </svg>
+                    Login with Twitch
+                </button>
+
+                <div class="landing-divider">
+                    <span>or</span>
+                </div>
+
+                <a href="/?offline=true" class="btn-secondary">Use Offline Mode</a>
+            </div>
+
+            <footer class="landing-footer">
+                <p>Developed by <strong>wospins</strong></p>
+                <p class="footer-links">
+                    <a href="https://github.com/rbignon/er-fog-vizu" target="_blank">GitHub</a>
+                    <span class="separator">•</span>
+                    <a href="https://www.nexusmods.com/eldenring/mods/3295" target="_blank">Fog Gate Randomizer Mod</a>
+                </p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         Dashboard Page (/dashboard)
+         ========================================================================= -->
+    <div id="dashboard-page" class="page hidden">
+        <header class="dashboard-header">
+            <div class="dashboard-title">
+                <h1>Your Games</h1>
+            </div>
+            <div class="dashboard-user">
+                <img id="dashboard-avatar" class="user-avatar" src="" alt="">
+                <span id="dashboard-username"></span>
+                <button id="logout-btn" class="btn-secondary btn-small">Logout</button>
+            </div>
+        </header>
+
+        <main class="dashboard-main">
+            <section id="games-list-section">
+                <div id="games-list" class="games-grid">
+                    <!-- Populated dynamically -->
+                </div>
+                <div id="games-empty" class="games-empty hidden">
+                    <p>No games yet. Upload a spoiler log to get started!</p>
+                </div>
+                <div id="games-loading" class="games-loading">
+                    <p>Loading your games...</p>
+                </div>
+            </section>
+
+            <section id="new-game-section" class="new-game-section">
+                <h2>Start New Game</h2>
+                <div id="new-game-drop-zone" class="drop-zone">
+                    <div class="icon">📂</div>
+                    <p>Drop your spoiler log file here</p>
+                    <p class="hint">or click to browse</p>
+                </div>
+                <input type="file" id="new-game-file-input" accept=".txt,.log" class="hidden">
+                <div id="new-game-form" class="new-game-form hidden">
+                    <div class="form-row">
+                        <label for="new-game-label">Game Label (optional)</label>
+                        <input type="text" id="new-game-label" placeholder="e.g., Malenia Run">
+                    </div>
+                    <div class="form-row">
+                        <span class="seed-info">Seed: <span id="new-game-seed"></span></span>
+                    </div>
+                    <div class="form-actions">
+                        <button id="create-game-btn" class="btn-primary">Create Game</button>
+                        <button id="cancel-new-game-btn" class="btn-secondary">Cancel</button>
+                    </div>
+                </div>
+                <div id="new-game-error" class="error-message hidden"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- =========================================================================
+         User Games Page (/watch/:username)
+         ========================================================================= -->
+    <div id="user-games-page" class="page hidden">
+        <header class="user-games-header">
+            <h1><span id="user-games-displayname"></span>'s Games</h1>
+        </header>
+
+        <main class="user-games-main">
+            <div id="user-games-list" class="games-grid">
+                <!-- Populated dynamically -->
+            </div>
+            <div id="user-games-empty" class="games-empty hidden">
+                <p>This user has no public games.</p>
+            </div>
+            <div id="user-games-loading" class="games-loading">
+                <p>Loading games...</p>
+            </div>
+            <div id="user-games-error" class="error-message hidden"></div>
+        </main>
+    </div>
+
+    <!-- =========================================================================
+         Offline Upload Screen (/?offline=true)
+         ========================================================================= -->
+    <div id="upload-screen" class="page hidden">
+        <a href="/" class="back-link offline-back">← Back to Login</a>
+        <h1>Fog Gate Randomizer</h1>
+        <p class="subtitle">Offline Mode</p>
+
+        <div id="drop-zone" class="drop-zone">
+            <div class="icon">📂</div>
+            <p>Drop your spoiler log file here</p>
+            <p class="hint">or click to browse</p>
+        </div>
+        <input type="file" id="file-input" accept=".txt,.log">
+
+        <div id="demo-section">
+            <p class="demo-separator">— or —</p>
+            <button id="demo-btn">Try Demo (Seed 561689827)</button>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+
+        <footer id="upload-footer">
+            <p>Developed by <strong>wospins</strong></p>
+            <p class="footer-links">
+                <a href="https://github.com/rbignon/er-fog-vizu" target="_blank">GitHub</a>
+                <span class="separator">•</span>
+                <a href="https://www.nexusmods.com/eldenring/mods/3295" target="_blank">Fog Gate Randomizer Mod</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- =========================================================================
+         Main Graph UI (/play/:gameId, /watch/:username/:gameId, offline after upload)
+         ========================================================================= -->
+    <div id="main-ui" class="page hidden">
+        <div id="header">
+            <div class="header-left">
+                <div>
+                    <a id="header-title-link" href="/" class="title-link"><h1>Fog Gate Randomizer</h1></a>
+                    <div class="subtitle">
+                        <span id="seed-info">Loading...</span>
+                        <a id="header-back-link" href="/dashboard" class="back-link hidden">← Dashboard</a>
+                    </div>
+                </div>
+            </div>
+            <div id="controls">
+                <div id="controls-left">
+                    <div id="explorer-controls" class="hidden">
+                        <button id="reset-exploration-btn" title="Reset exploration progress">Reset</button>
+                    </div>
+                    <div id="mode-selector">
+                        <button id="mode-explorer" class="mode-btn active" title="Discover areas as you play">Explorer</button>
+                        <button id="mode-spoiler" class="mode-btn" title="See the entire map">Full Spoiler</button>
+                    </div>
+                </div>
+                <div id="search-container">
+                    <input type="text" id="search" placeholder="Search area...">
+                    <div id="search-dropdown"></div>
+                </div>
+                <div id="controls-right">
+                    <button id="stream-btn" title="Share viewer URL for OBS">Stream</button>
+                    <button id="new-file-btn">Load New File</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="graph-container">
+            <svg></svg>
+        </div>
+
+        <div id="tooltip">
+            <span class="close-btn">&times;</span>
+            <h3></h3>
+            <div class="content"></div>
+        </div>
+
+        <div id="legend">
+            <h4>Legend</h4>
+            <div class="legend-item">
+                <div class="legend-line random"></div>
+                <span>Randomized Fog Gate</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line preexisting"></div>
+                <span>Pre-existing Connection</span>
+            </div>
+            <div class="legend-item hidden" id="legend-requires-item">
+                <div class="legend-line requires-item"></div>
+                <span>Requires Key Item</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node start"></div>
+                <span>Starting Area</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node normal"></div>
+                <span>Normal Area</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node boss"></div>
+                <span>Boss Arena</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node end"></div>
+                <span>End Area</span>
+            </div>
+            <div class="legend-item legend-separator">
+                <div class="legend-node normal"></div>
+                <span>Passage (≤2 links)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node normal hub"></div>
+                <span>Interchange (3+ links)</span>
+            </div>
+        </div>
+
+        <div id="stats">
+            <div id="stats-options">
+                <label title="Highlight unexplored areas and their access points">
+                    <input type="checkbox" id="show-frontier-checkbox">
+                    Frontier
+                </label>
+                <label title="When clicking a node, highlight the path from Chapel of Anticipation">
+                    <input type="checkbox" id="show-path-from-start" checked>
+                    Path from start
+                </label>
+            </div>
+            <div id="stats-tags" class="hidden">
+                <div class="stats-tags-title">Tags</div>
+                <div id="stats-tags-list"></div>
+            </div>
+            <div id="stats-numbers">
+                <p id="discovered-stat" class="hidden">Discovered: <span id="discovered-count">0</span>/<span id="total-areas">0</span> (<span id="discovered-percent">0</span>%)</p>
+                <p>Areas: <span id="area-count">0</span></p>
+                <p>Interchanges: <span id="hub-count">0</span></p>
+                <p>Fog Gates: <span id="random-count">0</span></p>
+                <p>Pre-existing: <span id="preexisting-count">0</span></p>
+            </div>
+        </div>
+
+        <div id="help">
+            Scroll to zoom • Drag to pan<br>
+            Click node for details panel<br>
+            Hover connections for travel info<br>
+            <strong>D</strong> discover • <strong>U</strong> undiscover • <strong>F</strong> frontier • <strong>P</strong> path • <strong>Esc</strong> close
+        </div>
+
+        <!-- Viewer mode discovery counter (OBS overlay) -->
+        <div id="viewer-discovery-counter" class="hidden">
+            <div class="counter-text">
+                <span id="viewer-discovered">0</span>/<span id="viewer-total">0</span>
+                <span id="viewer-percent" class="counter-percent"></span>
+            </div>
+            <div class="counter-progress">
+                <div id="viewer-progress-bar" class="counter-progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         Stream to OBS Modal
+         ========================================================================= -->
+    <div id="stream-modal" class="modal hidden">
+        <div class="stream-modal-content stream-modal-wide">
+            <button id="close-stream-modal" class="modal-close-btn">&times;</button>
+            <h3>OBS Browser Source</h3>
+            <div class="stream-modal-layout">
+                <div class="stream-modal-left">
+                    <div class="stream-url-section">
+                        <label>Browser Source URL:</label>
+                        <textarea id="stream-url-input" readonly rows="3"></textarea>
+                        <button id="copy-url-btn" class="btn-secondary btn-copy">Copy URL</button>
+                    </div>
+                    <div class="stream-options">
+                        <div class="form-row">
+                            <label for="counter-position">Counter Position:</label>
+                            <select id="counter-position">
+                                <option value="br">Bottom Right</option>
+                                <option value="bl">Bottom Left</option>
+                                <option value="tr">Top Right</option>
+                                <option value="tl">Top Left</option>
+                                <option value="t">Top Center</option>
+                                <option value="b">Bottom Center</option>
+                                <option value="l">Left Center</option>
+                                <option value="r">Right Center</option>
+                                <option value="off">Hidden</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label for="counter-size">Counter Size:</label>
+                            <select id="counter-size">
+                                <option value="sm">Small</option>
+                                <option value="md" selected>Medium</option>
+                                <option value="lg">Large</option>
+                                <option value="xl">Extra Large</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="close-stream-modal-btn" class="btn-secondary">Close</button>
+                </div>
+                <div class="stream-modal-right">
+                    <div class="stream-preview">
+                        <img src="/stream.png" alt="OBS overlay example">
+                    </div>
+                    <div class="obs-instructions">
+                        <div class="obs-instructions-title">How to add to OBS</div>
+                        <ol>
+                            <li>In OBS, click <strong>+</strong> under Sources</li>
+                            <li>Select <strong>Browser</strong></li>
+                            <li>Paste the URL above</li>
+                            <li>Set dimensions to <strong>1920 x 1080</strong></li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>

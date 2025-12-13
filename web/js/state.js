@@ -8,6 +8,12 @@ const state = {
     graphData: null,
     seed: null,
 
+    // Backend mode: 'offline' (localStorage) or 'online' (server)
+    backendMode: 'offline',
+    gameId: null,  // UUID when in online mode
+    isViewer: false,  // true when viewing someone else's game (read-only)
+    isOverlayMode: false,  // true for OBS overlay (sync viewport, transparent bg)
+
     // Exploration mode
     explorationMode: true,  // true = Explorer, false = Full Spoiler
     explorationState: {
@@ -16,13 +22,13 @@ const state = {
         tags: new Map()
     },
     frontierHighlightActive: false,
-    
+
     // Graph visualization state
     nodePositions: new Map(),
     currentZoomTransform: null,
     selectedNodeId: null,
     simulation: null,
-    
+
     // Sync state
     syncConnected: false,
     isStreamerHost: false,
@@ -120,6 +126,22 @@ export function getSessionCode() {
     return state.sessionCode;
 }
 
+export function getBackendMode() {
+    return state.backendMode;
+}
+
+export function getGameId() {
+    return state.gameId;
+}
+
+export function isViewerMode() {
+    return state.isViewer;
+}
+
+export function isOverlayMode() {
+    return state.isOverlayMode;
+}
+
 // ============================================================
 // STATE SETTERS (emit events on change)
 // ============================================================
@@ -174,6 +196,27 @@ export function setSyncState(connected, isHost, code) {
     state.isStreamerHost = isHost;
     state.sessionCode = code;
     emit('syncStateChanged', { connected, isHost, code });
+}
+
+export function setBackendMode(mode) {
+    state.backendMode = mode;
+    emit('backendModeChanged', mode);
+}
+
+export function setGameId(gameId) {
+    state.gameId = gameId;
+}
+
+export function setIsViewer(isViewer) {
+    state.isViewer = isViewer;
+}
+
+export function setIsOverlayMode(isOverlay) {
+    state.isOverlayMode = isOverlay;
+}
+
+export function setNodePositions(positions) {
+    state.nodePositions = positions;
 }
 
 export function setPendingUndiscoveredNodeId(nodeId) {

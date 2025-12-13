@@ -1,0 +1,411 @@
+"""
+WebSocket connection manager and handlers.
+"""
+
+import asyncio
+from dataclasses import dataclass, field
+from uuid import UUID
+
+from fastapi import WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from fogvizu.config import settings
+from fogvizu.database import Game, User, async_session
+from fogvizu.game_logic import propagate_discovery
+
+
+@dataclass
+class GameRoom:
+    """Tracks all connections for a game."""
+
+    game_id: UUID
+    mod: WebSocket | None = None
+    host: WebSocket | None = None
+    viewers: list[WebSocket] = field(default_factory=list)
+    last_visual_state: dict | None = None
+
+
+class ConnectionManager:
+    """Manages WebSocket connections for all games."""
+
+    def __init__(self):
+        self.rooms: dict[UUID, GameRoom] = {}
+
+    def get_or_create_room(self, game_id: UUID) -> GameRoom:
+        """Get or create a room for a game."""
+        if game_id not in self.rooms:
+            self.rooms[game_id] = GameRoom(game_id=game_id)
+        return self.rooms[game_id]
+
+    def cleanup_room(self, game_id: UUID):
+        """Remove room if empty."""
+        room = self.rooms.get(game_id)
+        if room and not room.mod and not room.host and not room.viewers:
+            del self.rooms[game_id]
+
+    async def broadcast_to_viewers(self, game_id: UUID, message: dict):
+        """Broadcast message to all viewers of a game."""
+        room = self.rooms.get(game_id)
+        if not room:
+            return
+
+        disconnected = []
+        for viewer in room.viewers:
+            try:
+                await viewer.send_json(message)
+            except Exception:
+                disconnected.append(viewer)
+
+        for viewer in disconnected:
+            room.viewers.remove(viewer)
+
+    async def broadcast_to_all(
+        self, game_id: UUID, message: dict, exclude: WebSocket | None = None
+    ):
+        """Broadcast message to host and all viewers."""
+        room = self.rooms.get(game_id)
+        if not room:
+            return
+
+        # Send to host
+        if room.host and room.host != exclude:
+            try:
+                await room.host.send_json(message)
+            except Exception:
+                room.host = None
+
+        # Send to viewers
+        await self.broadcast_to_viewers(game_id, message)
+
+
+manager = ConnectionManager()
+
+
+# =============================================================================
+# Authentication Helper
+# =============================================================================
+
+
+async def authenticate_ws(websocket: WebSocket, db: AsyncSession) -> User | None:
+    """Wait for auth message and validate token."""
+    try:
+        # Wait for auth message (5 second timeout)
+        data = await asyncio.wait_for(websocket.receive_json(), timeout=5.0)
+
+        if data.get("type") != "auth":
+            await websocket.send_json({"type": "auth_error", "message": "Expected auth message"})
+            return None
+
+        token = data.get("token")
+        if not token:
+            await websocket.send_json({"type": "auth_error", "message": "Missing token"})
+            return None
+
+        # Validate token
+        result = await db.execute(select(User).where(User.api_token == token))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            await websocket.send_json({"type": "auth_error", "message": "Invalid token"})
+            return None
+
+        await websocket.send_json({"type": "auth_ok"})
+        return user
+
+    except TimeoutError:
+        await websocket.send_json({"type": "auth_error", "message": "Auth timeout"})
+        return None
+    except Exception:
+        return None
+
+
+async def verify_game_access(
+    db: AsyncSession, game_id: UUID, user: User | None = None, require_owner: bool = False
+) -> Game | None:
+    """Verify game exists and optionally check ownership."""
+    query = select(Game).where(Game.id == game_id).where(Game.deleted_at.is_(None))
+
+    if require_owner and user:
+        query = query.where(Game.user_id == user.id)
+
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
+# =============================================================================
+# Heartbeat
+# =============================================================================
+
+
+async def heartbeat_loop(websocket: WebSocket, interval: int = None):
+    """Send periodic pings to keep connection alive."""
+    interval = interval or settings.heartbeat_interval
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await websocket.send_json({"type": "ping"})
+        except Exception:
+            break
+
+
+# =============================================================================
+# Mod WebSocket Handler
+# =============================================================================
+
+
+async def handle_mod_connection(websocket: WebSocket, game_id: UUID):
+    """Handle mod WebSocket connection."""
+    await websocket.accept()
+
+    async with async_session() as db:
+        # Authenticate
+        user = await authenticate_ws(websocket, db)
+        if not user:
+            await websocket.close()
+            return
+
+        # Verify game access
+        game = await verify_game_access(db, game_id, user, require_owner=True)
+        if not game:
+            await websocket.send_json({"type": "error", "message": "Game not found"})
+            await websocket.close()
+            return
+
+        # Register in room
+        room = manager.get_or_create_room(game_id)
+        if room.mod:
+            await websocket.send_json({"type": "error", "message": "Mod already connected"})
+            await websocket.close()
+            return
+
+        room.mod = websocket
+
+        # Start heartbeat
+        heartbeat_task = asyncio.create_task(heartbeat_loop(websocket))
+
+        try:
+            while True:
+                data = await websocket.receive_json()
+                msg_type = data.get("type")
+
+                if msg_type == "pong":
+                    continue
+
+                elif msg_type == "discovery":
+                    source = data.get("source")
+                    target = data.get("target")
+
+                    if not source or not target:
+                        await websocket.send_json(
+                            {"type": "error", "message": "Missing source or target"}
+                        )
+                        continue
+
+                    # Propagate discovery
+                    propagated = await propagate_discovery(
+                        db, game_id, source, target, discovered_by="mod"
+                    )
+                    await db.commit()
+
+                    # Send ack to mod
+                    await websocket.send_json({"type": "discovery_ack", "propagated": propagated})
+
+                    # Broadcast to host and viewers
+                    await manager.broadcast_to_all(
+                        game_id, {"type": "discovery", "propagated": propagated}, exclude=websocket
+                    )
+
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            print(f"Mod connection error: {e}")
+        finally:
+            heartbeat_task.cancel()
+            room.mod = None
+            manager.cleanup_room(game_id)
+
+
+# =============================================================================
+# Host WebSocket Handler
+# =============================================================================
+
+
+async def handle_host_connection(websocket: WebSocket, game_id: UUID):
+    """Handle host (streamer browser) WebSocket connection."""
+    await websocket.accept()
+
+    async with async_session() as db:
+        # Authenticate
+        user = await authenticate_ws(websocket, db)
+        if not user:
+            await websocket.close()
+            return
+
+        # Verify game access
+        game = await verify_game_access(db, game_id, user, require_owner=True)
+        if not game:
+            await websocket.send_json({"type": "error", "message": "Game not found"})
+            await websocket.close()
+            return
+
+        # Register in room
+        room = manager.get_or_create_room(game_id)
+        if room.host:
+            await websocket.send_json({"type": "error", "message": "Host already connected"})
+            await websocket.close()
+            return
+
+        room.host = websocket
+
+        # Send current game state (directly from JSONB columns)
+        game_state = {
+            "discovered_links": [
+                {"source": dl["source"], "target": dl["target"]}
+                for dl in (game.discovered_links or [])
+            ],
+            "node_positions": game.node_positions or {},
+            "tags": game.tags or {},
+        }
+        await websocket.send_json({"type": "game_state", "state": game_state})
+
+        # Start heartbeat
+        heartbeat_task = asyncio.create_task(heartbeat_loop(websocket))
+
+        try:
+            while True:
+                data = await websocket.receive_json()
+                msg_type = data.get("type")
+
+                if msg_type == "pong":
+                    continue
+
+                elif msg_type == "visual_state":
+                    # Store last visual state for late-joining viewers
+                    room.last_visual_state = data
+
+                    # Broadcast to viewers
+                    await manager.broadcast_to_viewers(game_id, data)
+
+                elif msg_type == "positions_update":
+                    positions = data.get("positions", {})
+
+                    # Update JSONB column (merge with existing)
+                    # Refetch game to get current state
+                    result = await db.execute(select(Game).where(Game.id == game_id))
+                    game = result.scalar_one_or_none()
+                    if game:
+                        current_positions = dict(game.node_positions or {})
+                        current_positions.update(positions)
+                        game.node_positions = current_positions
+                        await db.commit()
+
+                    # Broadcast to viewers
+                    await manager.broadcast_to_viewers(game_id, data)
+
+                elif msg_type == "tag_update":
+                    zone = data.get("zone")
+                    tags = data.get("tags", [])
+
+                    # Update JSONB column
+                    result = await db.execute(select(Game).where(Game.id == game_id))
+                    game = result.scalar_one_or_none()
+                    if game:
+                        current_tags = dict(game.tags or {})
+                        if tags:
+                            current_tags[zone] = tags
+                        else:
+                            current_tags.pop(zone, None)
+                        game.tags = current_tags
+                        await db.commit()
+
+                    # Broadcast to all (including mod if connected)
+                    await manager.broadcast_to_all(game_id, data, exclude=websocket)
+
+                elif msg_type == "manual_discovery":
+                    source = data.get("source")
+                    target = data.get("target")
+
+                    if source and target:
+                        propagated = await propagate_discovery(
+                            db, game_id, source, target, discovered_by="manual"
+                        )
+                        await db.commit()
+
+                        # Broadcast to all
+                        await manager.broadcast_to_all(
+                            game_id,
+                            {"type": "discovery", "propagated": propagated},
+                            exclude=websocket,
+                        )
+
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            print(f"Host connection error: {e}")
+        finally:
+            heartbeat_task.cancel()
+            room.host = None
+            manager.cleanup_room(game_id)
+
+
+# =============================================================================
+# Viewer WebSocket Handler
+# =============================================================================
+
+
+async def handle_viewer_connection(websocket: WebSocket, game_id: UUID):
+    """Handle viewer WebSocket connection (no auth required)."""
+    await websocket.accept()
+
+    async with async_session() as db:
+        # Verify game exists
+        game = await verify_game_access(db, game_id)
+        if not game:
+            await websocket.send_json({"type": "error", "message": "Game not found"})
+            await websocket.close()
+            return
+
+        # Check viewer limit
+        room = manager.get_or_create_room(game_id)
+        if len(room.viewers) >= settings.max_viewers_per_game:
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": f"Maximum viewers ({settings.max_viewers_per_game}) reached",
+                }
+            )
+            await websocket.close()
+            return
+
+        # Register viewer
+        room.viewers.append(websocket)
+
+        # Send current state
+        if room.last_visual_state:
+            await websocket.send_json(room.last_visual_state)
+        else:
+            # No host connected yet, send basic game info
+            await websocket.send_json({"type": "waiting", "message": "Waiting for host to connect"})
+
+        # Start heartbeat
+        heartbeat_task = asyncio.create_task(heartbeat_loop(websocket))
+
+        try:
+            while True:
+                data = await websocket.receive_json()
+                msg_type = data.get("type")
+
+                if msg_type == "pong":
+                    continue
+                # Viewers don't send other messages
+
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            print(f"Viewer connection error: {e}")
+        finally:
+            heartbeat_task.cancel()
+            if websocket in room.viewers:
+                room.viewers.remove(websocket)
+            manager.cleanup_room(game_id)

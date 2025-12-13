@@ -272,7 +272,7 @@ export function highlightFrontier() {
     const graphData = State.getGraphData();
     if (!explorationState || !graphData) return;
 
-    const svg = d3.select("svg");
+    const svg = d3.select("#graph-container svg");
     const nodes = svg.selectAll(".node");
     const links = svg.selectAll(".link");
 
@@ -316,7 +316,7 @@ export function highlightFrontier() {
 }
 
 export function clearFrontierHighlight() {
-    const svg = d3.select("svg");
+    const svg = d3.select("#graph-container svg");
     svg.selectAll(".node")
         .classed("frontier-highlight", false)
         .classed("access-highlight", false)
