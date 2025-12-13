@@ -503,6 +503,7 @@ pub fn get_zone_name(map_id: u32) -> String {
 }
 
 /// Get the zone name from a map_id string (e.g., "m60_42_36_00")
+#[allow(dead_code)]
 pub fn get_zone_name_from_str(map_id_str: &str) -> String {
     // Parse "mAA_BB_CC_DD" format
     if !map_id_str.starts_with('m') || map_id_str.len() < 14 {

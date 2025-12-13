@@ -24,6 +24,7 @@ use crate::config::ServerSettings;
 pub enum ConnectionStatus {
     Disconnected,
     Connecting,
+    #[allow(dead_code)]
     Authenticating,
     Connected,
     Reconnecting,

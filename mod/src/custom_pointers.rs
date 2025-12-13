@@ -96,6 +96,7 @@ impl CustomPointers {
 
     /// Returns true if the player is currently riding Torrent
     /// Uses "HorseState" - returns true if value != 0
+    #[allow(dead_code)]
     pub fn is_on_torrent(&self) -> bool {
         self.horse_state.read().map(|v| v != 0).unwrap_or(false)
     }
@@ -163,6 +164,7 @@ impl EventFlagReader {
     }
 
     /// Read a u32 from the given address
+    #[allow(dead_code)]
     fn read_u32(&self, addr: usize) -> Option<u32> {
         let mut value: u32 = 0;
         unsafe {
@@ -262,9 +264,7 @@ impl EventFlagReader {
 
             let current_group = self.read_i32(current + FlagGroupNodeOffset::Group as usize)?;
             let next = if current_group < group_num {
-                let right = self.read_ptr(current + FlagGroupNodeOffset::Right as usize)?;
-                found = current;
-                right
+                self.read_ptr(current + FlagGroupNodeOffset::Right as usize)?
             } else {
                 self.read_ptr(current + FlagGroupNodeOffset::Left as usize)?
             };
@@ -319,6 +319,7 @@ impl EventFlagReader {
     }
 
     /// Check if the event flag system is ready (game loaded)
+    #[allow(dead_code)]
     pub fn is_ready(&self) -> bool {
         // Try to read a known flag (flag 2200 is used as a loading indicator)
         self.get_flag_location(2200).is_some()

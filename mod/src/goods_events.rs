@@ -11,6 +11,7 @@ use std::path::Path;
 /// Information about an item event
 #[derive(Clone, Debug)]
 pub struct GoodsEventInfo {
+    #[allow(dead_code)]
     pub event_id: u32,
     pub item_id: u32,
     pub name: String,
@@ -110,6 +111,7 @@ impl GoodsEventsLoader {
     }
 
     /// Check if the loader is empty
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
