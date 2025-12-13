@@ -28,6 +28,5 @@ env/
 /*.txt
 /*.svg
 
-# Rust (future mod/)
-target/
-Cargo.lock
+# Rust mod
+mod/target/

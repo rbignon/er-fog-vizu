@@ -1,0 +1,60 @@
+name: Build Mod (Windows)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'mod/**'
+      - '.github/workflows/build-mod.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'mod/**'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mod/target
+          key: ${{ runner.os }}-cargo-mod-${{ hashFiles('mod/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mod-
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Prepare distribution package
+        run: |
+          mkdir dist
+          cp target/release/route_tracking.dll dist/
+          cp target/release/route-tracker-injector.exe dist/
+          cp route_tracker_config.toml dist/
+          cp src/WorldMapLegacyConvParam.csv dist/
+          cp GoodsEvents.tsv dist/
+
+      - name: Upload distribution package
+        uses: actions/upload-artifact@v4
+        with:
+          name: fog-vizu-mod
+          path: mod/dist/
+          if-no-files-found: error
