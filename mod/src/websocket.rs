@@ -4,7 +4,6 @@
 // transmission of fog gate discoveries.
 
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
-use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,7 +12,6 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tungstenite::stream::MaybeTlsStream;
 use tungstenite::{connect, Message, WebSocket};
-use url::Url;
 
 use crate::config::ServerSettings;
 
@@ -353,25 +351,9 @@ fn connect_and_authenticate(
     url: &str,
     api_token: &str,
 ) -> Result<WebSocket<MaybeTlsStream<TcpStream>>, String> {
-    // Parse URL to determine if TLS is needed
-    let parsed_url = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
-
-    let use_tls = parsed_url.scheme() == "wss";
-
-    // Build the connection
-    let (mut socket, _response) = if use_tls {
-        // Create TLS connector
-        let connector = TlsConnector::builder()
-            .build()
-            .map_err(|e| format!("TLS error: {}", e))?;
-
-        connect(tungstenite::ClientRequestBuilder::new(
-            parsed_url.clone().into(),
-        ))
-        .map_err(|e| format!("Connection failed: {}", e))?
-    } else {
-        connect(url).map_err(|e| format!("Connection failed: {}", e))?
-    };
+    // tungstenite handles TLS automatically for wss:// URLs
+    let (mut socket, _response) =
+        connect(url).map_err(|e| format!("Connection failed: {}", e))?;
 
     // Send auth message
     let auth_msg = ServerMessage::Auth {

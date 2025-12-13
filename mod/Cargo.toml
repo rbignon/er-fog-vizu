@@ -39,9 +39,7 @@ toml = "0.8"
 
 # --- WebSocket client for fog-vizu integration ---
 tungstenite = { version = "0.21", features = ["native-tls"] }
-native-tls = "0.2"
 crossbeam-channel = "0.5"
-url = "2.5"
 
 # --- Windows API ---
 [dependencies.windows]

@@ -5,7 +5,6 @@ use hudhook::tracing::info;
 use hudhook::ImguiRenderLoop;
 
 use crate::tracker::RouteTracker;
-use crate::websocket::ConnectionStatus;
 
 // =============================================================================
 // HUDHOOK IMPLEMENTATION
