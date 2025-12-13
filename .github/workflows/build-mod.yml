@@ -2,7 +2,7 @@ name: Build Mod (Windows)
 
 on:
   push:
-    branches: [master]
+    branches: [master, wip]
     paths:
       - 'mod/**'
       - '.github/workflows/build-mod.yml'
