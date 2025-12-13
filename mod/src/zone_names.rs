@@ -4,6 +4,9 @@
 // Used to display zone names for fog wall traversals.
 // Data extracted from fog randomizer (fog.txt).
 
+// DLC zone boundaries intentionally overlap at edges (e.g., Gravesite Plain / Charo's Hidden Grave)
+#![allow(overlapping_range_endpoints)]
+
 use crate::coordinate_transformer::WorldPositionTransformer;
 
 // =============================================================================
