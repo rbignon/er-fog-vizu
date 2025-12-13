@@ -1208,15 +1208,14 @@ async function handleGameWsDisconnect() {
             // Success - reset reconnect state
             gameWsReconnectStartTime = null;
             gameWsReconnectAttempts = 0;
-            Toast.success('Reconnected to server');
+            gameWsIsReconnecting = false;
+            Toast.show('Reconnected to server');
         } catch (e) {
             console.log('Reconnection attempt failed:', e.message);
             // Schedule next attempt
             gameWsIsReconnecting = false;
             handleGameWsDisconnect();
-            return;
         }
-        gameWsIsReconnecting = false;
     }, delay);
 }
 
@@ -1253,7 +1252,7 @@ function handleDiscoveryFromServer(propagated) {
     if (changed) {
         // Re-render graph to show newly discovered areas
         State.emit('graphNeedsRender', { preservePositions: true });
-        Toast.success('New area discovered!');
+        Toast.show('New area discovered!');
     }
 }
 
