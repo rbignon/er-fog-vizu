@@ -67,6 +67,32 @@ body::before {
     font-style: italic;
 }
 
+#deprecation-notice {
+    background: linear-gradient(135deg, rgba(180, 100, 40, 0.15) 0%, rgba(140, 70, 30, 0.1) 100%);
+    border: 1px solid #8a5a30;
+    padding: 16px 28px;
+    margin-bottom: 30px;
+    text-align: center;
+    max-width: 500px;
+}
+
+#deprecation-notice p {
+    margin: 4px 0;
+    color: #d4a868;
+    font-size: 1rem;
+}
+
+#deprecation-notice a {
+    color: #e8c080;
+    text-decoration: underline;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+#deprecation-notice a:hover {
+    color: #fff;
+}
+
 #drop-zone {
     width: 500px;
     max-width: 90vw;
